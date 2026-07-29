@@ -1,11 +1,24 @@
-# e2e/ — insights log
+# e2e/ — engineering insights
 
-Append-only log of non-obvious decisions and gotchas discovered while working
-in this module — the "we tried X, it broke because Y" that's too specific
-for `CLAUDE.md` but too useful to lose. Newest entry on top.
+Append-only. Newest entry on top within each section. Never edit or delete
+existing entries. Promote anything that becomes a standing rule into
+[CLAUDE.md](CLAUDE.md) instead of leaving it here.
 
-Format: `## YYYY-MM-DD — short title` + a couple of sentences (what happened,
-why, what to do differently). Promote anything that becomes a standing rule
-into [CLAUDE.md](CLAUDE.md) instead of leaving it buried here.
+Entry test: if it'd be obvious to anyone reading the code, don't write it.
+Each entry must be specific enough that a cold agent knows exactly what to
+do without re-investigating.
 
-<!-- add entries below -->
+## What Works
+
+## What Doesn't Work
+
+## Codebase Patterns
+
+## Tool & Library Notes
+
+## Recurring Errors & Fixes
+
+## Session Notes
+<!-- written by a separate end-of-session wrap-up flow, not this skill -->
+
+## Open Questions
