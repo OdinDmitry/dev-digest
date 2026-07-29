@@ -34,10 +34,10 @@ export function RunCostBadge({
       </span>
     );
   }
-  const totalTokens = (tokensIn ?? 0) + (tokensOut ?? 0);
+  const totalTokens = tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null;
   return (
     <span className="tnum" style={detailedStyle}>
-      {totalTokens.toLocaleString()} tok · {cost}
+      {totalTokens != null ? totalTokens.toLocaleString() : "—"} tok · {cost}
     </span>
   );
 }
