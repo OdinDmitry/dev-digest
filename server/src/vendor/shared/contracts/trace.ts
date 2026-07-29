@@ -62,7 +62,10 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
-  cost_usd: z.number().nullable(),
+  // .default(null) rather than .nullable(): older run_traces JSONB documents
+  // (persisted before cost tracking shipped) have no cost_usd key at all, so
+  // a missing key must parse cleanly to null instead of throwing.
+  cost_usd: z.number().nullable().default(null),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -103,7 +106,7 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
-  cost_usd: z.number().nullable(),
+  cost_usd: z.number().nullable().default(null),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),
