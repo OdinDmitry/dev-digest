@@ -46,5 +46,3 @@ told otherwise. At the end of the task, update it; don't skip this step.
   keyword denylist on top, it's a deliberate non-goal.
 
 ## Do-not-touch
-- `src/vendor/shared` — generated copy of `@devdigest/shared`, edit the
-  source package instead.

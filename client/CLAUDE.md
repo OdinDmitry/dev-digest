@@ -42,5 +42,3 @@ jsdom, fetch mocked) · `pnpm typecheck`
   contract change in `@devdigest/shared` must be manually re-synced here.
 
 ## Do-not-touch
-- `src/vendor/shared`, `src/vendor/ui` — generated copies, edit the source
-  package instead.

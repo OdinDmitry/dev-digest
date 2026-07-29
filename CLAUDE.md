@@ -35,5 +35,3 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
   imported repo/review. Don't run it to "just restart" Postgres.
 
 ## Do-not-touch
-- `*/src/vendor/shared`, `client/src/vendor/ui` — generated copies, edit the
-  source package instead.
