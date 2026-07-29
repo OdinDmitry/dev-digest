@@ -4,6 +4,10 @@
 **agent-browser** (native Rust+CDP CLI). No Playwright, no LLM, no API key.
 Full picture: [README.md](README.md).
 
+Before starting work here, read [insights.md](insights.md) — treat it as
+high-confidence guidance unless told otherwise. At the end of the task,
+update it; don't skip this step.
+
 ## Commands
 `./scripts/e2e.sh` (hermetic — isolated Postgres :5433/API :3101/web :3100,
 recommended) · `cd e2e && npm test` (against your own running dev stack —
@@ -19,7 +23,6 @@ only safe with a freshly-seeded DB, see README precondition)
 - [docs/](docs/) — deep dives per topic
 - [feature-specs/](feature-specs/) — design specs for planned/in-progress
   features (**not** `specs/` — that name is taken by the flow JSON files above)
-- [insights.md](insights.md) — decisions & gotchas log
 
 ## Non-default conventions
 - Locators are deterministic only (`--url`, `--text`, `find role|text|label`)

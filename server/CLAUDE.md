@@ -4,6 +4,10 @@
 via repo-intel, runs the reviewer, stores results. Full picture:
 [README.md](README.md).
 
+Before starting work here (including its `repo-intel` submodule), read
+[insights.md](insights.md) — treat it as high-confidence guidance unless
+told otherwise. At the end of the task, update it; don't skip this step.
+
 ## Commands
 `pnpm dev` (:3001) · `pnpm build` · `pnpm test` (unit+integration) ·
 `pnpm typecheck` · `pnpm db:migrate` · `pnpm db:seed` · `pnpm db:generate`
@@ -21,7 +25,6 @@ via repo-intel, runs the reviewer, stores results. Full picture:
 ## Further reading (load only if relevant to the task)
 - [docs/](docs/) — deep dives per topic
 - [specs/](specs/) — design specs for planned/in-progress features
-- [insights.md](insights.md) — decisions & gotchas log
 
 ## Non-default conventions
 - Routes declare zod `params`/`body` schemas via `fastify-type-provider-zod`

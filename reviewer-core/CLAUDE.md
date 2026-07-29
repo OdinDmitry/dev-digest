@@ -5,6 +5,10 @@ grounded findings. No database, GitHub, or filesystem; the only side effect
 is an LLM call through an **injected** `LLMProvider`. Full picture:
 [README.md](README.md).
 
+Before starting work here, read [insights.md](insights.md) — treat it as
+high-confidence guidance unless told otherwise. At the end of the task,
+update it; don't skip this step.
+
 ## Commands
 `npm test` (vitest, hermetic, stubbed `LLMProvider`) · `npm run typecheck`
 (doubles as the build — this package never emits JS)
@@ -24,7 +28,6 @@ is an LLM call through an **injected** `LLMProvider`. Full picture:
 ## Further reading (load only if relevant to the task)
 - [docs/](docs/) — deep dives per topic
 - [specs/](specs/) — design specs for planned/in-progress features
-- [insights.md](insights.md) — decisions & gotchas log
 
 ## Non-default conventions
 - Stay pure: no DB/network/filesystem access here — only the injected

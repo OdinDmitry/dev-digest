@@ -3,6 +3,10 @@
 `@devdigest/web` — Next.js 15 studio: import repos, browse PRs, run/read AI
 reviews, author agents. Full picture: [README.md](README.md).
 
+Before starting work here, read [insights.md](insights.md) — treat it as
+high-confidence guidance unless told otherwise. At the end of the task,
+update it; don't skip this step.
+
 ## Commands
 `pnpm dev` (:3000) · `pnpm build` · `pnpm start` · `pnpm test` (vitest +
 jsdom, fetch mocked) · `pnpm typecheck`
@@ -23,7 +27,6 @@ jsdom, fetch mocked) · `pnpm typecheck`
 ## Further reading (load only if relevant to the task)
 - [docs/](docs/) — deep dives per topic
 - [specs/](specs/) — design specs for planned/in-progress features
-- [insights.md](insights.md) — decisions & gotchas log
 
 ## Non-default conventions
 - Pages are thin; feature logic sits in colocated `_components/` folders, not
