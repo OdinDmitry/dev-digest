@@ -65,6 +65,8 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    warning_count: run.warningCount,
+    suggestion_count: run.suggestionCount,
   }));
 }
 
@@ -154,6 +156,9 @@ export async function completeAgentRun(
     score?: number | null;
     /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
     blockers?: number | null;
+    /** Remaining severity buckets alongside `blockers`; null on failed/cancelled runs. */
+    warningCount?: number | null;
+    suggestionCount?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
   },
@@ -170,6 +175,8 @@ export async function completeAgentRun(
       grounding: values.grounding,
       score: values.score ?? null,
       blockers: values.blockers ?? null,
+      warningCount: values.warningCount ?? null,
+      suggestionCount: values.suggestionCount ?? null,
       error: values.error ?? null,
     })
     .where(eq(t.agentRuns.id, runId));

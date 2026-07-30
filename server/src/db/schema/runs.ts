@@ -29,6 +29,9 @@ export const agentRuns = pgTable('agent_runs', {
   score: integer('score'),
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
   blockers: integer('blockers'),
+  /** Non-CRITICAL severity buckets, alongside `blockers` (the CRITICAL count). */
+  warningCount: integer('warning_count'),
+  suggestionCount: integer('suggestion_count'),
 });
 
 /** Whole trace of one run as a SINGLE jsonb document. */

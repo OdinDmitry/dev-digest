@@ -115,5 +115,10 @@ export const RunSummary = z.object({
   // findings that trip the agent's gate. Null on failed/cancelled runs.
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  // Remaining severity buckets alongside `blockers` (which already IS the
+  // CRITICAL count) — together they feed the timeline row's per-run severity
+  // breakdown. Null on failed/cancelled runs, same as `blockers`.
+  warning_count: z.number().int().nullable(),
+  suggestion_count: z.number().int().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
