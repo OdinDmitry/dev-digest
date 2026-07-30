@@ -5,9 +5,9 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -31,14 +31,16 @@ function run(o: Partial<RunSummary>): RunSummary {
     ran_at: "2026-06-11T18:44:34.000Z",
     score: null,
     blockers: null,
+    warning_count: null,
+    suggestion_count: null,
     ...o,
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(runs: RunSummary[], findingsByRunId?: Map<string, FindingRecord[]>) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} findingsByRunId={findingsByRunId} onOpenTrace={() => {}} />
     </NextIntlClientProvider>,
   );
 }
@@ -72,5 +74,38 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+
+  it("shows the per-run severity breakdown and its popup renders from the passed-in findings (no fetch)", () => {
+    const finding: FindingRecord = {
+      id: "f1",
+      severity: "WARNING",
+      category: "bug",
+      title: "N+1 query",
+      file: "src/api/users.ts",
+      start_line: 45,
+      end_line: 52,
+      rationale: "Loop calls db.posts.findMany once per user.",
+      suggestion: null,
+      confidence: 0.86,
+      kind: "finding",
+      trifecta_components: null,
+      evidence: null,
+      review_id: "r1",
+      accepted_at: null,
+      dismissed_at: null,
+    };
+    renderRuns(
+      [run({ status: "done", findings_count: 3, blockers: 2, warning_count: 1, suggestion_count: 0, score: 64 })],
+      new Map([["run-1", [finding]]]),
+    );
+    expect(screen.getByText("2")).toBeInTheDocument(); // CRITICAL badge count
+    expect(screen.getByText("1")).toBeInTheDocument(); // WARNING badge count
+    expect(screen.queryByText("N+1 query")).not.toBeInTheDocument();
+
+    // Badge count "1" (WARNING) → button → badges row → SeverityCounts root.
+    const severityRoot = screen.getByText("1").closest("button")!.parentElement!.parentElement!;
+    fireEvent.mouseEnter(severityRoot);
+    expect(screen.getByText("N+1 query")).toBeInTheDocument();
   });
 });

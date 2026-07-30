@@ -6,18 +6,44 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost";
+import { usePrReviews } from "@/lib/hooks/reviews";
 import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
-import { relativeTime, sizeOf } from "../../helpers";
+import { relativeTime, sizeOf, latestReviewPerAgent } from "../../helpers";
 import { s } from "../../styles";
+import { SeverityCounts, type SeverityKey } from "../SeverityCounts";
 
-export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
+const ZERO_COUNTS = { critical: 0, warning: 0, suggestion: 0 };
+
+export function PRRow({
+  pr,
+  repoId,
+  selectedSeverity = null,
+  onSelectSeverity,
+}: {
+  pr: PrMeta;
+  repoId: string;
+  selectedSeverity?: SeverityKey | null;
+  onSelectSeverity?: (key: SeverityKey) => void;
+}) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+
+  // Findings popup: lazily fetch this PR's reviews only while the FINDINGS
+  // cell is actually hovered — not on row mount, to avoid an N-query fan-out
+  // over the whole list. Same endpoint the PR-detail page already uses.
+  const [popupHover, setPopupHover] = React.useState(false);
+  const reviewsQuery = usePrReviews(pr.id, { enabled: popupHover });
+  // Matches the list badge's own scope: each agent's latest review, summed —
+  // not just whichever review happens to be newest overall.
+  const popupFindings = reviewsQuery.data
+    ? latestReviewPerAgent(reviewsQuery.data).flatMap((r) => r.findings.filter((f) => !f.dismissed_at))
+    : undefined;
+
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -53,6 +79,16 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
+      </div>
+      <div onClick={(e) => e.stopPropagation()}>
+        <SeverityCounts
+          counts={pr.findings_by_severity ?? ZERO_COUNTS}
+          selected={selectedSeverity}
+          onSelect={onSelectSeverity}
+          popupFindings={popupHover ? popupFindings : undefined}
+          popupLoading={popupHover && reviewsQuery.isLoading}
+          onHoverChange={setPopupHover}
+        />
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

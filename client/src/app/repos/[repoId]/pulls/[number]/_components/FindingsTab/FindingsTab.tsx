@@ -5,9 +5,26 @@ import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { SeverityCounts, type SeverityKey } from "../../../_components/SeverityCounts";
+import { latestReviewPerAgent } from "../../../helpers";
+import { buildFindingsByRunId } from "./helpers";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
+
+/** Undismissed findings tallied by severity — same shape as the server's
+ *  `rollupSeverities` (pulls/status.ts), computed client-side here since the
+ *  full findings are already on the page. */
+function countBySeverity(findings: FindingRecord[]) {
+  const c = { critical: 0, warning: 0, suggestion: 0 };
+  for (const f of findings) {
+    if (f.dismissed_at) continue;
+    if (f.severity === "CRITICAL") c.critical += 1;
+    else if (f.severity === "WARNING") c.warning += 1;
+    else if (f.severity === "SUGGESTION") c.suggestion += 1;
+  }
+  return c;
+}
 
 interface FindingsTabProps {
   prId: string | null;
@@ -71,6 +88,22 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  // Page-level severity click-filter: the COUNTER sums each agent's OWN
+  // latest review (a re-run of the SAME agent supersedes its own older
+  // review, but every distinct agent's latest review counts — matches the
+  // PR-list badge's scope). Once a severity is selected the filter narrows
+  // every open run's FindingsPanel.
+  const [selectedSeverity, setSelectedSeverity] = React.useState<SeverityKey | null>(null);
+  const handleSelectSeverity = useCallback((key: SeverityKey) => {
+    setSelectedSeverity((cur) => (cur === key ? null : key));
+  }, []);
+  const aggregateCounts = React.useMemo(
+    () => countBySeverity(latestReviewPerAgent(runs).flatMap((r) => r.findings)),
+    [runs],
+  );
+
+  const findingsByRunId = React.useMemo(() => buildFindingsByRunId(runs), [runs]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -131,6 +164,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRunId={findingsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -140,7 +174,16 @@ export function FindingsTab({
 
       <SectionLabel
         icon="AlertOctagon"
-        right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>grouped by run · newest first</span>}
+        right={
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <SeverityCounts
+              counts={aggregateCounts}
+              selected={selectedSeverity}
+              onSelect={handleSelectSeverity}
+            />
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>grouped by run · newest first</span>
+          </div>
+        }
       >
         Review runs
       </SectionLabel>
@@ -164,6 +207,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            severityFilter={selectedSeverity}
           />
         ))
       )}

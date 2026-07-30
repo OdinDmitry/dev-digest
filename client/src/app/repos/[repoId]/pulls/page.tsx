@@ -20,6 +20,7 @@ import { COLUMN_KEYS, SKELETON_ROWS } from "./constants";
 import { s } from "./styles";
 import { PRRow } from "./_components/PRRow";
 import { FilterBar } from "./_components/FilterBar";
+import type { SeverityKey } from "./_components/SeverityCounts";
 
 /** Open PRs carry a derived review status; everything else is merged/closed. */
 const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
@@ -45,11 +46,17 @@ export default function PullsPage() {
 
   const [query, setQuery] = React.useState("");
   const [sort, setSort] = React.useState("newest");
+  // Single-select severity filter, toggled by clicking a FINDINGS badge —
+  // clicking the same severity again clears it back to "all".
+  const [severityFilter, setSeverityFilter] = React.useState<SeverityKey | null>(null);
+  const onSelectSeverity = (key: SeverityKey) =>
+    setSeverityFilter((cur) => (cur === key ? null : key));
 
   const q = query.trim().toLowerCase();
   const filtered = (pulls ?? [])
     .filter((p) => status === "all" || p.status === status)
     .filter((p) => !q || p.title.toLowerCase().includes(q) || String(p.number).includes(q))
+    .filter((p) => !severityFilter || (p.findings_by_severity?.[severityFilter] ?? 0) > 0)
     .slice()
     .sort((a, b) => {
       const ta = Date.parse(a.updated_at ?? "") || 0;
@@ -127,7 +134,15 @@ export default function PullsPage() {
             }
           />
         ) : (
-          filtered.map((pr) => <PRRow key={pr.number} pr={pr} repoId={repoId} />)
+          filtered.map((pr) => (
+            <PRRow
+              key={pr.number}
+              pr={pr}
+              repoId={repoId}
+              selectedSeverity={severityFilter}
+              onSelectSeverity={onSelectSeverity}
+            />
+          ))
         )}
       </div>
     </AppShell>

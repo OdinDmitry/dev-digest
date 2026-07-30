@@ -1,4 +1,25 @@
+import type { ReviewRecord } from "@devdigest/shared";
 import { SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
+
+/**
+ * Each agent's own most recent `kind === "review"` row for a PR — mirrors the
+ * server's PR-list aggregation (`server/src/modules/pulls/routes.ts`): a
+ * re-run of the SAME agent supersedes its own older review, but every
+ * DISTINCT agent's latest review counts. `reviews` must be newest-first
+ * (the order `GET /pulls/:id/reviews` already returns).
+ */
+export function latestReviewPerAgent(reviews: ReviewRecord[]): ReviewRecord[] {
+  const seen = new Set<string>();
+  const result: ReviewRecord[] = [];
+  for (const r of reviews) {
+    if (r.kind !== "review") continue;
+    const key = r.agent_id ?? `review:${r.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(r);
+  }
+  return result;
+}
 
 /** Bucket a PR into S/M/L by total changed lines. */
 export function sizeOf(pr: PrMeta): SizeInfo {

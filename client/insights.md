@@ -16,6 +16,9 @@ do without re-investigating.
 
 ## Codebase Patterns
 
+- **A component shared between the PR-list route and the PR-detail (`[number]`) route lives under `pulls/_components/`, not `@devdigest/ui`** — `SeverityCounts` (severity readout used by both `PRRow` in the list and `RunHistory`/`FindingsTab` on the detail page) is colocated at `pulls/_components/SeverityCounts/`, imported from the detail side via a relative path up through `[number]/_components/` (e.g. `../../../_components/SeverityCounts` from `pulls/[number]/_components/RunHistory/`). Kept out of `@devdigest/ui` deliberately since it's specific to the findings/severity domain, not a generic UI primitive — promote it there only if a third, unrelated consumer shows up.
+- **A TanStack Query hook can be made "fetch only while hovered" by adding an `{ enabled }` option, reusing the SAME hook/endpoint another page already calls** — `usePrReviews(prId, { enabled })` (`src/lib/hooks/reviews.ts`) is the same hook the PR-detail page already uses for its full findings list; `PRRow` on the PR-list page calls it too, gated on `enabled: popupHover`, to lazily fetch one row's findings only when its FINDINGS-column popup is actually hovered — no separate lazy-fetch hook needed, and react-query's cache makes re-hovering the same row instant after the first fetch.
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes
