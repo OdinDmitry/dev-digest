@@ -196,8 +196,6 @@ export function RunHistory({
               )}
               {settled && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
                   {(r.findings_count ?? 0) > 0 && (
                     <SeverityCounts
                       counts={{
@@ -209,6 +207,10 @@ export function RunHistory({
                       popupHeading="in this run"
                     />
                   )}
+                  <span>
+                    {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                    {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                  </span>
                 </div>
               )}
             </div>
