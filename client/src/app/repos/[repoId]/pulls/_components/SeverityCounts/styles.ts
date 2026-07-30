@@ -30,6 +30,10 @@ export const s = {
     maxWidth: 360,
     maxHeight: 320,
     overflowY: "auto",
+    // Long unbroken text (e.g. a deep file path) must wrap, never force a
+    // horizontal scrollbar — overflowX stays hidden as a hard backstop on
+    // top of the wrapping rules below.
+    overflowX: "hidden",
     background: "var(--bg-elevated)",
     border: "1px solid var(--border)",
     borderRadius: 8,
@@ -75,9 +79,15 @@ export const s = {
   popupMeta: {
     display: "flex",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
     fontSize: 11,
     color: "var(--text-muted)",
+    // File paths have no spaces to wrap on naturally — break them rather
+    // than letting them force the popup to scroll horizontally.
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    minWidth: 0,
   } satisfies CSSProperties,
   popupRationale: {
     fontSize: 11.5,

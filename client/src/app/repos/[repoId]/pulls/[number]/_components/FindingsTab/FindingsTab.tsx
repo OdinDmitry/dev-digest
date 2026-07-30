@@ -6,6 +6,8 @@ import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { SeverityCounts, type SeverityKey } from "../../../_components/SeverityCounts";
+import { latestReviewPerAgent } from "../../../helpers";
+import { buildFindingsByRunId } from "./helpers";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -86,28 +88,21 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
-  // Page-level severity click-filter: the COUNTER reflects only the latest
-  // review (avoids double-counting the same issue across re-runs), but once a
-  // severity is selected the filter narrows every open run's FindingsPanel.
+  // Page-level severity click-filter: the COUNTER sums each agent's OWN
+  // latest review (a re-run of the SAME agent supersedes its own older
+  // review, but every distinct agent's latest review counts — matches the
+  // PR-list badge's scope). Once a severity is selected the filter narrows
+  // every open run's FindingsPanel.
   const [selectedSeverity, setSelectedSeverity] = React.useState<SeverityKey | null>(null);
   const handleSelectSeverity = useCallback((key: SeverityKey) => {
     setSelectedSeverity((cur) => (cur === key ? null : key));
   }, []);
-  const latestReview = runs.find((r) => r.kind === "review") ?? null;
   const aggregateCounts = React.useMemo(
-    () => countBySeverity(latestReview?.findings ?? []),
-    [latestReview],
+    () => countBySeverity(latestReviewPerAgent(runs).flatMap((r) => r.findings)),
+    [runs],
   );
 
-  // This run's (undismissed) findings, keyed by run_id — feeds the timeline
-  // row's hover popup with data already on the page (no extra fetch).
-  const findingsByRunId = React.useMemo(() => {
-    const m = new Map<string, FindingRecord[]>();
-    for (const r of runs) {
-      if (r.run_id) m.set(r.run_id, r.findings.filter((f) => !f.dismissed_at));
-    }
-    return m;
-  }, [runs]);
+  const findingsByRunId = React.useMemo(() => buildFindingsByRunId(runs), [runs]);
 
   return (
     <section>

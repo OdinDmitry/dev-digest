@@ -55,19 +55,37 @@ export function SeverityCounts({
   const total = counts.critical + counts.warning + counts.suggestion;
   const hasPopup = popupFindings !== undefined || popupLoading;
 
+  // Closing is debounced (not instant) so moving the mouse from the trigger
+  // to the portaled popup doesn't unmount it mid-transition: the popup is no
+  // longer a DOM descendant of the trigger (it's portaled to <body>), so the
+  // browser's leave-before-enter event ordering could otherwise remove it
+  // from the DOM before its own mouseenter has a chance to fire and cancel
+  // the close, permanently hiding the popup. Re-entering (either element)
+  // cancels the pending close.
+  const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
   const openPopup = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
     setHovering(true);
     onHoverChange?.(true);
     const rect = rootRef.current?.getBoundingClientRect();
     if (rect) setPos({ top: rect.bottom, left: rect.left });
   };
-  const closePopup = () => {
-    setHovering(false);
-    onHoverChange?.(false);
+  const scheduleClose = () => {
+    closeTimer.current = setTimeout(() => {
+      setHovering(false);
+      onHoverChange?.(false);
+    }, 120);
   };
 
   return (
-    <div ref={rootRef} style={s.root} onMouseEnter={openPopup} onMouseLeave={closePopup}>
+    <div ref={rootRef} style={s.root} onMouseEnter={openPopup} onMouseLeave={scheduleClose}>
       <div style={s.badges}>
         {total === 0 ? (
           <span style={s.empty}>—</span>
@@ -104,7 +122,7 @@ export function SeverityCounts({
           <div
             style={{ ...s.popup, position: "fixed", top: pos.top, left: pos.left }}
             onMouseEnter={openPopup}
-            onMouseLeave={closePopup}
+            onMouseLeave={scheduleClose}
             onClick={(e) => e.stopPropagation()}
           >
             {!popupLoading && (

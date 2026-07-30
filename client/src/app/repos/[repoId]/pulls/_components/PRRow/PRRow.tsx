@@ -9,7 +9,7 @@ import { RunCostBadge } from "@/components/run-cost";
 import { usePrReviews } from "@/lib/hooks/reviews";
 import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
-import { relativeTime, sizeOf } from "../../helpers";
+import { relativeTime, sizeOf, latestReviewPerAgent } from "../../helpers";
 import { s } from "../../styles";
 import { SeverityCounts, type SeverityKey } from "../SeverityCounts";
 
@@ -38,8 +38,11 @@ export function PRRow({
   // over the whole list. Same endpoint the PR-detail page already uses.
   const [popupHover, setPopupHover] = React.useState(false);
   const reviewsQuery = usePrReviews(pr.id, { enabled: popupHover });
-  const latestReview = reviewsQuery.data?.find((r) => r.kind === "review") ?? null;
-  const popupFindings = latestReview ? latestReview.findings.filter((f) => !f.dismissed_at) : undefined;
+  // Matches the list badge's own scope: each agent's latest review, summed —
+  // not just whichever review happens to be newest overall.
+  const popupFindings = reviewsQuery.data
+    ? latestReviewPerAgent(reviewsQuery.data).flatMap((r) => r.findings.filter((f) => !f.dismissed_at))
+    : undefined;
 
   return (
     <div

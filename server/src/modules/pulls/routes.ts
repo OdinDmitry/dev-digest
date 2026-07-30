@@ -111,54 +111,101 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE + FINDINGS breakdown per PR for the list. Computed
-    // on read from reviews (no FK denorm); the list is small, so two IN-queries
-    // + JS grouping is cheap.
+    // SCORE (single latest review overall) + FINDINGS/COST (summed across
+    // every agent's OWN latest review) per PR for the list. Computed on read
+    // from reviews (no FK denorm); the list is small, so a couple of
+    // IN-queries + JS grouping is cheap.
+    //
+    // Score stays "latest review overall" (unchanged) — there's no obvious
+    // single-number way to combine multiple agents' scores. FINDINGS and COST
+    // are different: a PR reviewed by several agents (e.g. "run all") should
+    // show everything every agent currently thinks about it, not just
+    // whichever agent's run happened to finish last. So those two are summed
+    // across each agent's most recent review — re-running the SAME agent
+    // supersedes its own older review (avoids double-counting a stale,
+    // already-fixed issue), but DIFFERENT agents' latest reviews all count.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<
-      string,
-      { reviewId: string; score: number | null; costUsd: number | null }
-    >();
-    if (prIds.length > 0) {
-      const reviewRows = await container.db
-        .select({
-          prId: t.reviews.prId,
-          reviewId: t.reviews.id,
-          score: t.reviews.score,
-          costUsd: t.agentRuns.costUsd,
-        })
-        .from(t.reviews)
-        .leftJoin(t.agentRuns, eq(t.agentRuns.id, t.reviews.runId))
-        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
-        .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
-      for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) {
-          latestReviewByPr.set(rv.prId, { reviewId: rv.reviewId, score: rv.score, costUsd: rv.costUsd });
-        }
-      }
+    const reviewRows =
+      prIds.length > 0
+        ? await container.db
+            .select({
+              prId: t.reviews.prId,
+              reviewId: t.reviews.id,
+              agentId: t.reviews.agentId,
+              score: t.reviews.score,
+              costUsd: t.agentRuns.costUsd,
+            })
+            .from(t.reviews)
+            .leftJoin(t.agentRuns, eq(t.agentRuns.id, t.reviews.runId))
+            .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+            .orderBy(desc(t.reviews.createdAt))
+        : [];
+
+    // Rows are newest-first → first seen per PR is the single latest review
+    // overall (used for `score` only).
+    const latestReviewByPr = new Map<string, { score: number | null }>();
+    for (const rv of reviewRows) {
+      if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
     }
 
-    // Per-severity finding counts for each PR's latest review (undismissed
-    // only), scoped to just those latest-review ids — feeds the list's
+    // First seen per (PR, agent) is that agent's latest review — a null
+    // agentId (deleted agent / no agent) is its own bucket via the reviewId,
+    // so it never merges with another review.
+    const latestPerAgentByPr = new Map<
+      string,
+      Map<string, { reviewId: string; costUsd: number | null }>
+    >();
+    for (const rv of reviewRows) {
+      const agentKey = rv.agentId ?? `review:${rv.reviewId}`;
+      const byAgent = latestPerAgentByPr.get(rv.prId) ?? new Map();
+      if (!byAgent.has(agentKey)) byAgent.set(agentKey, { reviewId: rv.reviewId, costUsd: rv.costUsd });
+      latestPerAgentByPr.set(rv.prId, byAgent);
+    }
+
+    // Sum cost across each PR's latest-per-agent reviews.
+    const costByPr = new Map<string, number | null>();
+    for (const [prId, byAgent] of latestPerAgentByPr) {
+      const costs = [...byAgent.values()].map((v) => v.costUsd).filter((c): c is number => c != null);
+      costByPr.set(prId, costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : null);
+    }
+
+    // Per-severity finding counts (undismissed only), scoped to just the
+    // latest-per-agent review ids, then summed per PR — feeds the list's
     // FINDINGS column. `rollupSeverities` is the same pure tally used/tested
     // for this exact shape in pulls-status.test.ts.
-    const latestReviewIds = [...latestReviewByPr.values()].map((r) => r.reviewId);
+    const latestPerAgentReviewIds = [...latestPerAgentByPr.values()].flatMap((byAgent) =>
+      [...byAgent.values()].map((v) => v.reviewId),
+    );
     const severityByReview = new Map<string, ReturnType<typeof rollupSeverities>>();
-    if (latestReviewIds.length > 0) {
+    if (latestPerAgentReviewIds.length > 0) {
       const findingRows = await container.db
         .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
         .from(t.findings)
-        .where(and(inArray(t.findings.reviewId, latestReviewIds), isNull(t.findings.dismissedAt)));
+        .where(
+          and(inArray(t.findings.reviewId, latestPerAgentReviewIds), isNull(t.findings.dismissedAt)),
+        );
       const byReview = new Map<string, { severity: string }[]>();
       for (const f of findingRows) {
         const list = byReview.get(f.reviewId) ?? [];
         list.push({ severity: f.severity });
         byReview.set(f.reviewId, list);
       }
-      for (const reviewId of latestReviewIds) {
+      for (const reviewId of latestPerAgentReviewIds) {
         severityByReview.set(reviewId, rollupSeverities(byReview.get(reviewId) ?? []));
       }
+    }
+    const findingsByPr = new Map<string, ReturnType<typeof rollupSeverities> | null>();
+    for (const [prId, byAgent] of latestPerAgentByPr) {
+      const counts = { critical: 0, warning: 0, suggestion: 0 };
+      for (const { reviewId } of byAgent.values()) {
+        const rv = severityByReview.get(reviewId);
+        if (rv) {
+          counts.critical += rv.critical;
+          counts.warning += rv.warning;
+          counts.suggestion += rv.suggestion;
+        }
+      }
+      findingsByPr.set(prId, counts);
     }
 
     const now = Date.now();
@@ -185,8 +232,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: review ? review.costUsd : null,
-        findings_by_severity: review ? severityByReview.get(review.reviewId) ?? null : null,
+        cost_usd: costByPr.get(r.id) ?? null,
+        findings_by_severity: findingsByPr.get(r.id) ?? null,
       };
     });
   });

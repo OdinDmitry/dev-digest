@@ -10,8 +10,10 @@ import type { Review } from '@devdigest/shared';
 
 /**
  * Severity findings counters (client spec 0001 / server spec 0001):
- *  - GET /repos/:id/pulls exposes `findings_by_severity` per PR, tallied from
- *    the LATEST review's undismissed findings only.
+ *  - GET /repos/:id/pulls exposes `findings_by_severity` + `cost_usd`, each
+ *    SUMMED across every agent's OWN latest review for the PR (a re-run of
+ *    the SAME agent supersedes its own older review; different agents'
+ *    latest reviews all count). `score` stays "latest review overall".
  *  - GET /pulls/:id/runs exposes `warning_count`/`suggestion_count` per run,
  *    alongside the existing `blockers` (already the CRITICAL count).
  */
@@ -84,6 +86,57 @@ const MIXED_SEVERITY_FIXTURE: Review = {
       kind: 'finding',
     },
   ],
+};
+
+/** A single CRITICAL finding — used to simulate one agent's first (later
+ *  superseded) run. */
+const CRITICAL_ONLY_FIXTURE: Review = {
+  verdict: 'request_changes',
+  summary: 'One critical issue.',
+  score: 60,
+  findings: [
+    {
+      id: 'f-crit-only',
+      severity: 'CRITICAL',
+      category: 'security',
+      title: 'Hardcoded secret (will be fixed)',
+      file: 'src/config.ts',
+      start_line: 11,
+      end_line: 11,
+      rationale: 'A live secret is committed in source.',
+      confidence: 0.9,
+      kind: 'finding',
+    },
+  ],
+};
+
+/** A single WARNING finding — a different agent's only run. */
+const WARNING_ONLY_FIXTURE: Review = {
+  verdict: 'comment',
+  summary: 'One warning.',
+  score: 80,
+  findings: [
+    {
+      id: 'f-warn-only',
+      severity: 'WARNING',
+      category: 'bug',
+      title: 'A warning from a different agent',
+      file: 'src/config.ts',
+      start_line: 11,
+      end_line: 11,
+      rationale: 'A warning-level issue.',
+      confidence: 0.8,
+      kind: 'finding',
+    },
+  ],
+};
+
+/** No findings — simulates the first agent's issue having been fixed. */
+const CLEAN_FIXTURE: Review = {
+  verdict: 'approve',
+  summary: 'Looks good now.',
+  score: 95,
+  findings: [],
 };
 
 async function setupRepoAndPr(db: PgFixture['handle']['db'], workspaceId: string, seq: number) {
@@ -198,6 +251,73 @@ d('severity findings counters (Testcontainers pg)', () => {
     expect(prMetaAfter.findings_by_severity).toEqual({ critical: 1, warning: 1, suggestion: 1 });
 
     await app.close();
+  });
+
+  it('sums findings_by_severity and cost_usd across each agent\'s own LATEST review — a re-run of one agent supersedes only its own older review', async () => {
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId, seq++);
+
+    const appA = await appWith(CRITICAL_ONLY_FIXTURE);
+    const agentA = (
+      await appA.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Agent A', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+    const agentB = (
+      await appA.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Agent B', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+
+    // Agent A's FIRST run: 1 critical (will be superseded below).
+    await appA.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agentA.id },
+    });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await appA.close();
+
+    // Agent B's only run: 1 warning.
+    const appB = await appWith(WARNING_ONLY_FIXTURE);
+    const runB = await appB.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agentB.id },
+    });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    await appB.close();
+
+    // Agent A's SECOND (re-)run: clean — supersedes runA1 for agent A.
+    const appA2 = await appWith(CLEAN_FIXTURE);
+    const runA2 = await appA2.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agentA.id },
+    });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 3 });
+
+    const runsRes = (
+      await appA2.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })
+    ).json();
+    const costOf = (runId: string) =>
+      runsRes.find((r: { run_id: string }) => r.run_id === runId).cost_usd as number;
+    const expectedCost = costOf(runB.json().runs[0].run_id) + costOf(runA2.json().runs[0].run_id);
+
+    const listRes = (
+      await appA2.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })
+    ).json();
+    const prMeta = listRes.find((p: { number: number }) => p.number === pr.number);
+
+    // Agent A's superseded critical finding does NOT count; agent B's warning does.
+    expect(prMeta.findings_by_severity).toEqual({ critical: 0, warning: 1, suggestion: 0 });
+    // Cost sums agent B's run + agent A's LATEST run only, not runA1's cost too.
+    expect(prMeta.cost_usd).toBeCloseTo(expectedCost, 6);
+
+    await appA2.close();
   });
 
   it('findings_by_severity is null for a PR with no review yet', async () => {

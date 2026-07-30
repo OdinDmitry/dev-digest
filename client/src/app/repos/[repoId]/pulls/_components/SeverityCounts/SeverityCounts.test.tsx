@@ -1,9 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import type { FindingRecord } from "@devdigest/shared";
 import { SeverityCounts } from "./SeverityCounts";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const FINDING: FindingRecord = {
   id: "f1",
@@ -90,7 +93,8 @@ describe("SeverityCounts", () => {
     expect(lastItem.getAttribute("style")).not.toContain("border-bottom");
   });
 
-  it("hover fires onHoverChange so the caller can lazily fetch popup data", () => {
+  it("hover fires onHoverChange so the caller can lazily fetch popup data (close is debounced)", () => {
+    vi.useFakeTimers();
     const onHoverChange = vi.fn();
     const { container } = render(
       <SeverityCounts counts={{ critical: 1, warning: 0, suggestion: 0 }} onHoverChange={onHoverChange} />,
@@ -99,7 +103,28 @@ describe("SeverityCounts", () => {
     fireEvent.mouseEnter(root);
     expect(onHoverChange).toHaveBeenCalledWith(true);
     fireEvent.mouseLeave(root);
+    expect(onHoverChange).not.toHaveBeenCalledWith(false); // not instant
+    act(() => { vi.advanceTimersByTime(200); });
     expect(onHoverChange).toHaveBeenCalledWith(false);
+  });
+
+  it("moving the mouse from the trigger to the portaled popup within the debounce window keeps it open (no flicker-close)", () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <SeverityCounts counts={{ critical: 1, warning: 0, suggestion: 0 }} popupFindings={[FINDING]} />,
+    );
+    const root = container.firstChild as Element;
+    fireEvent.mouseEnter(root);
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+
+    // Leave the trigger, then (within the debounce window) enter the popup —
+    // the pending close must be cancelled, not fired.
+    fireEvent.mouseLeave(root);
+    const popupRoot = screen.getByText("Hardcoded secret").closest("div")!.parentElement!.parentElement!.parentElement!;
+    fireEvent.mouseEnter(popupRoot);
+    act(() => { vi.advanceTimersByTime(200); });
+
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
   });
 
   it("shows a loading state in the popup while popupLoading is true", () => {
