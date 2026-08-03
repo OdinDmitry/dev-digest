@@ -166,9 +166,10 @@ New arrays, objects, and functions created inline in JSX props break `React.memo
 
 ## Code Organization (MEDIUM)
 
-### Feature-Based Structure
-- Colocate component + hook + helpers + tests per feature
-- Shared utilities go in `utils/` or `components/ui/`
+Folder structure, feature boundaries, dependency rules, and where components /
+constants / types / business logic belong are owned by the
+[frontend-ui-architecture](../frontend-ui-architecture/SKILL.md) skill — use it for any
+"where should this go?" question.
 
 ### File Quality
 - Order: imports, constants, helpers, component, exports
