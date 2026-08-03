@@ -46,3 +46,4 @@ told otherwise. At the end of the task, update it; don't skip this step.
   keyword denylist on top, it's a deliberate non-goal.
 
 ## Do-not-touch
+- server/src/db/migrations/ - never hand-edit without coordination
