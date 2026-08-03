@@ -23,6 +23,10 @@ description: Reads and writes the current module's insights.md, the append-only 
   - ❌ Bad: "Promises can be tricky." — noise, not a lesson.
   - ✅ Good: "`Promise.all()` on the ingest pipeline times out after 30
     items — use `Promise.allSettled()` with batches of 10 for this module."
+- Prefix every new entry with its date before the bold trigger phrase, in
+  `YYYY-MM-DD` italics: `- _2026-08-03_ — **trigger phrase** — rest of
+  entry.` Take the date from the current session context (today's date),
+  never guess it from file mtimes or commit history.
 - At session end, do one more pass: append anything substantial that
   surfaced and isn't yet logged; if nothing substantial came up, write
   nothing.
