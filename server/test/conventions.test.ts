@@ -63,6 +63,40 @@ describe('verifyEvidence', () => {
       false,
     );
   });
+
+  it('does not overcount by one for a trailing newline (the common case for real source files)', async () => {
+    // sample.ts is 'line 1\nline 2\nline 3\n' — 3 real lines. A naive
+    // content.split('\n').length would report 4 (the trailing '\n' produces
+    // a phantom 4th empty element), letting evidence one line past the real
+    // content through the grounding gate.
+    expect(await verifyEvidence(clonePath, { file: 'sample.ts', start_line: 3, end_line: 3 })).toBe(
+      true,
+    );
+    expect(await verifyEvidence(clonePath, { file: 'sample.ts', start_line: 4, end_line: 4 })).toBe(
+      false,
+    );
+  });
+
+  it('counts correctly for a file with no trailing newline', async () => {
+    const noTrailingNewline = await mkdtemp(join(tmpdir(), 'ddg-conventions-no-nl-'));
+    await writeFile(join(noTrailingNewline, 'sample.ts'), 'line 1\nline 2');
+    expect(
+      await verifyEvidence(noTrailingNewline, { file: 'sample.ts', start_line: 2, end_line: 2 }),
+    ).toBe(true);
+    expect(
+      await verifyEvidence(noTrailingNewline, { file: 'sample.ts', start_line: 3, end_line: 3 }),
+    ).toBe(false);
+    await rm(noTrailingNewline, { recursive: true, force: true });
+  });
+
+  it('drops evidence against an empty file', async () => {
+    const emptyDir = await mkdtemp(join(tmpdir(), 'ddg-conventions-empty-'));
+    await writeFile(join(emptyDir, 'empty.ts'), '');
+    expect(await verifyEvidence(emptyDir, { file: 'empty.ts', start_line: 1, end_line: 1 })).toBe(
+      false,
+    );
+    await rm(emptyDir, { recursive: true, force: true });
+  });
 });
 
 describe('renderSample', () => {
