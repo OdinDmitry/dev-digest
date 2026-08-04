@@ -167,6 +167,39 @@ export const SkillImportPreview = z.object({
 });
 export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
+// A body snapshot in `skill_versions`. `note` is the author's optional "what
+// changed?"; null on seeded/pre-note rows and on every v1, where the client
+// renders "Initial version" instead. `lines_added`/`lines_removed` are computed
+// server-side against the PREVIOUS snapshot (against "" for v1) so the history
+// list can show a summary without shipping every body to the browser.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  note: z.string().nullable(),
+  created_at: z.string(),
+  lines_added: z.number().int(),
+  lines_removed: z.number().int(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+// GET /skills/:id/versions/:version — the list shape plus the snapshot body.
+// Fetched only when the user opens a diff or restores, never on tab mount.
+export const SkillVersionDetail = SkillVersion.extend({ body: z.string() });
+export type SkillVersionDetail = z.infer<typeof SkillVersionDetail>;
+
+// Per-skill rollup for the library rail (GET /skills/stats). Deliberately NOT
+// folded into `Skill`, for the same reason `AgentListStats` is not folded into
+// `Agent`: `Skill` is also the response of POST /skills and PUT /skills/:id,
+// where the count is always 0 or unchanged and therefore misleading. Named
+// `SkillListStats` (not `SkillStats`) so a richer per-skill detail contract
+// (eval/accept, mirroring `AgentStats` in contracts/observability.ts) has a
+// free name in a later lesson.
+export const SkillListStats = z.object({
+  skill_id: z.string(),
+  agent_count: z.number().int(),
+});
+export type SkillListStats = z.infer<typeof SkillListStats>;
+
 // ---- Conventions ----
 export const ConventionCandidate = z.object({
   id: z.string(),

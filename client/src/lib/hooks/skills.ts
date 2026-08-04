@@ -6,7 +6,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Skill, SkillImportPreview, SkillSource, SkillType } from "@devdigest/shared";
+import type {
+  Skill,
+  SkillImportPreview,
+  SkillListStats,
+  SkillSource,
+  SkillType,
+  SkillVersion,
+  SkillVersionDetail,
+} from "@devdigest/shared";
 
 export function useSkills() {
   return useQuery({
@@ -15,11 +23,43 @@ export function useSkills() {
   });
 }
 
+// Intentionally unused today: `useSkills()` already returns full skill objects
+// (bodies included), so the rail + detail pane read straight from that list.
+// Wiring this in "for completeness" would double the request count for data
+// already in hand — leave it be unless a future screen needs ONE skill
+// without the rest of the list.
 export function useSkill(id: string | null | undefined) {
   return useQuery({
     queryKey: ["skill", id],
     queryFn: () => api.get<Skill>(`/skills/${id}`),
     enabled: !!id,
+  });
+}
+
+/** Per-skill linked-agent rollup for the rail footer (one request for all). */
+export function useSkillStats() {
+  return useQuery({
+    queryKey: ["skills", "stats"],
+    queryFn: () => api.get<SkillListStats[]>("/skills/stats"),
+    staleTime: 30_000,
+  });
+}
+
+/** Body-version history for a skill, newest first — no body (see the route doc). */
+export function useSkillVersions(skillId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["skill", skillId, "versions"],
+    queryFn: () => api.get<SkillVersion[]>(`/skills/${skillId}/versions`),
+    enabled: !!skillId,
+  });
+}
+
+/** One historical snapshot, WITH its body — fetched only when a diff or restore needs it. */
+export function useSkillVersion(skillId: string | null | undefined, version: number | null | undefined) {
+  return useQuery({
+    queryKey: ["skill", skillId, "version", version],
+    queryFn: () => api.get<SkillVersionDetail>(`/skills/${skillId}/versions/${version}`),
+    enabled: !!skillId && version != null,
   });
 }
 
@@ -43,7 +83,11 @@ export function useCreateSkill() {
 
 export interface UpdateSkillInput {
   id: string;
-  patch: Partial<Pick<Skill, "name" | "description" | "type" | "body" | "enabled">>;
+  patch: Partial<Pick<Skill, "name" | "description" | "type" | "body" | "enabled">> & {
+    /** "What changed?" — versions only alongside an actual body change; a
+     *  note on any other patch is discarded server-side (see the route doc). */
+    note?: string | null;
+  };
 }
 
 export function useUpdateSkill() {
@@ -56,6 +100,8 @@ export function useUpdateSkill() {
       // A skill's body/enabled state feeds every agent that links it, so the
       // agent-side link lists are stale too.
       qc.invalidateQueries({ queryKey: ["agent"] });
+      // A body change may have written a new snapshot — refresh the tab.
+      qc.invalidateQueries({ queryKey: ["skill", data.id, "versions"] });
     },
   });
 }
@@ -66,7 +112,29 @@ export function useDeleteSkill() {
     mutationFn: (id: string) => api.del<{ ok: boolean }>(`/skills/${id}`),
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.invalidateQueries({ queryKey: ["skills", "stats"] });
       qc.removeQueries({ queryKey: ["skill", id] });
+      qc.invalidateQueries({ queryKey: ["agent"] });
+    },
+  });
+}
+
+export interface RestoreSkillVersionInput {
+  skillId: string;
+  version: number;
+  note?: string | null;
+}
+
+/** Restore a historical body as a NEW version (history stays append-only). */
+export function useRestoreSkillVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ skillId, version, note }: RestoreSkillVersionInput) =>
+      api.post<Skill>(`/skills/${skillId}/versions/${version}/restore`, { note }),
+    onSuccess: (data, { skillId }) => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.setQueryData(["skill", data.id], data);
+      qc.invalidateQueries({ queryKey: ["skill", skillId, "versions"] });
       qc.invalidateQueries({ queryKey: ["agent"] });
     },
   });

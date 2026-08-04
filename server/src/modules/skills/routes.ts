@@ -11,13 +11,16 @@ import { IMPORT_BODY_LIMIT_BYTES, MAX_UPLOAD_BASE64_CHARS } from './constants.js
 
 /**
  * Skills module — reusable, text-only prompt blocks shared across agents.
- *   GET    /skills                  → list (workspace-scoped)
- *   GET    /skills/:id              → one skill
- *   POST   /skills                  → create
- *   PUT    /skills/:id              → update (a body change versions the skill)
- *   DELETE /skills/:id              → delete (versions + agent links cascade)
- *   GET    /skills/:id/versions     → body-version history (newest first)
- *   POST   /skills/import/preview   → parse an upload; persists NOTHING
+ *   GET    /skills                            → list (workspace-scoped)
+ *   GET    /skills/stats                      → per-skill linked-agent rollup (rail)
+ *   GET    /skills/:id                        → one skill
+ *   POST   /skills                            → create
+ *   PUT    /skills/:id                        → update (a body change versions the skill)
+ *   DELETE /skills/:id                        → delete (versions + agent links cascade)
+ *   GET    /skills/:id/versions               → body-version history (newest first, no body)
+ *   GET    /skills/:id/versions/:version      → one historical snapshot (with body)
+ *   POST   /skills/:id/versions/:version/restore → restore a snapshot as a NEW version
+ *   POST   /skills/import/preview             → parse an upload; persists NOTHING
  *
  * Attaching a skill to an agent lives on the agents module
  * (`GET|POST /agents/:id/skills`), which owns the `agent_skills` link table.
@@ -42,7 +45,16 @@ const UpdateSkillBody = z.object({
   body: z.string().min(1).optional(),
   enabled: z.boolean().optional(),
   evidence_files: z.array(z.string()).nullish(),
+  note: z.string().max(200).nullish(),
 });
+
+/** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
+const VersionParams = z.object({
+  id: z.string().uuid(),
+  version: z.coerce.number().int().positive(),
+});
+
+const RestoreVersionBody = z.object({ note: z.string().max(200).nullish() });
 
 /**
  * An upload arrives as JSON rather than multipart: multipart bodies bypass the
@@ -110,6 +122,18 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     },
   );
 
+  /**
+   * Per-skill rollup for the rail. Declared before `/skills/:id` so the static
+   * segment can never be read as a uuid — find-my-way prefers static segments
+   * anyway, but a fall-through would surface as a confusing 422 from IdParams
+   * rather than the intended response (the same hazard documented at
+   * `agents/routes.ts` for `GET /agents/stats`).
+   */
+  app.get('/skills/stats', async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.statsBySkill(workspaceId);
+  });
+
   app.get('/skills/:id', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const skill = await service.get(workspaceId, req.params.id);
@@ -137,6 +161,36 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     if (!versions) throw new NotFoundError('Skill not found');
     return versions;
   });
+
+  app.get(
+    '/skills/:id/versions/:version',
+    { schema: { params: VersionParams } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const version = await service.getVersion(workspaceId, req.params.id, req.params.version);
+      if (!version) throw new NotFoundError('Skill version not found');
+      return version;
+    },
+  );
+
+  app.post(
+    '/skills/:id/versions/:version/restore',
+    { schema: { params: VersionParams, body: RestoreVersionBody } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      // undefined covers both "no such skill" and "no such version" — either
+      // way the client gets a 404. Restoring the CURRENT version is NOT this
+      // case: it 200s with the unchanged skill (see restoreVersion).
+      const restored = await service.restoreVersion(
+        workspaceId,
+        req.params.id,
+        req.params.version,
+        req.body.note,
+      );
+      if (!restored) throw new NotFoundError('Skill or skill version not found');
+      return restored;
+    },
+  );
 }
 
 /** Strict base64 decode — a malformed payload must not reach the zip reader. */

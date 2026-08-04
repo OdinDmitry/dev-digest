@@ -1,22 +1,27 @@
-/* SkillCard — one skill in the library grid: name, type, description and the
-   library-level enabled toggle. Clicking it opens the preview pane. */
+/* SkillListItem — one skill in the library's rail: name, type + source chips,
+   description, the library-level enabled toggle, and a linked-agent count.
+   Clicking it selects the skill in the detail pane on the right. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Icon, Toggle } from "@devdigest/ui";
+import { Badge, Icon, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { skillTypeChip } from "../../../../lib/skill-type";
+import { SOURCE_ICON } from "./helpers";
 import { s } from "./styles";
 
-export function SkillCard({
+export function SkillListItem({
   skill,
   active,
+  /** null = stats not loaded yet; renders no footer rather than a false "0". */
+  agentCount,
   onClick,
   onToggle,
 }: {
   skill: Skill;
   active?: boolean;
+  agentCount?: number | null;
   onClick?: () => void;
   onToggle?: (enabled: boolean) => void;
 }) {
@@ -35,7 +40,7 @@ export function SkillCard({
           onClick?.();
         }
       }}
-      style={s.card(!!active, skill.enabled)}
+      style={s.row(!!active, skill.enabled)}
     >
       <div style={s.headerRow}>
         <div style={s.iconBox}>
@@ -53,6 +58,9 @@ export function SkillCard({
       <div style={s.description}>{skill.description}</div>
       <div style={s.metaRow}>
         <span style={skillTypeChip(skill.type)}>{t(`listItem.type.${skill.type}`)}</span>
+        <Badge icon={SOURCE_ICON[skill.source]} color="var(--text-muted)">
+          {t(`listItem.source.${skill.source}`)}
+        </Badge>
         {untrusted && (
           <span
             title={t("listItem.vettingTitle")}
@@ -63,6 +71,13 @@ export function SkillCard({
           </span>
         )}
       </div>
+      {/* Guard on != null, not ?? 0 — an in-flight stats request must not
+          render a confident "0 agents" while the real count is still loading. */}
+      {agentCount != null && (
+        <div style={s.statsRow} className="tnum">
+          {t("listItem.agentCount", { count: agentCount })}
+        </div>
+      )}
     </div>
   );
 }

@@ -28,6 +28,9 @@ export const skillVersions = pgTable(
       .references(() => skills.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     body: text('body').notNull(),
+    // Author's optional "what changed?" note. Null on every pre-existing
+    // snapshot and on every v1 (the client renders "Initial version" there).
+    note: text('note'),
     createdAt: now(),
   },
   (t) => ({ pk: primaryKey({ columns: [t.skillId, t.version] }) }),

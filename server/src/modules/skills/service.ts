@@ -1,7 +1,15 @@
-import type { Skill, SkillImportPreview, SkillSource, SkillType } from '@devdigest/shared';
+import type {
+  Skill,
+  SkillImportPreview,
+  SkillListStats,
+  SkillSource,
+  SkillType,
+  SkillVersion,
+  SkillVersionDetail,
+} from '@devdigest/shared';
 import { SkillsRepository, type SkillCountRow } from './repository.js';
 import { parseSkillUpload, type SkillUpload } from './import.js';
-import { toSkillDto } from './helpers.js';
+import { mergeSkillStats, toSkillDto, toSkillVersionDetailDto, toSkillVersionDto } from './helpers.js';
 
 /**
  * Skills service — the reusable prompt blocks agents attach to.
@@ -31,6 +39,9 @@ export interface UpdateSkillInput {
   body?: string;
   enabled?: boolean;
   evidence_files?: string[] | null;
+  /** Author's "what changed?" note; forwarded to the repo ONLY when the body
+   *  actually changes (see `SkillsRepository.update`). */
+  note?: string | null;
 }
 
 export interface SkillsServiceDeps {
@@ -76,6 +87,7 @@ export class SkillsService {
       ...(patch.body !== undefined ? { body: patch.body } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
       ...(patch.evidence_files !== undefined ? { evidenceFiles: patch.evidence_files } : {}),
+      ...(patch.note !== undefined ? { versionNote: patch.note } : {}),
     });
     return row ? toSkillDto(row) : undefined;
   }
@@ -84,15 +96,54 @@ export class SkillsService {
     return this.deps.repo.deleteById(workspaceId, id);
   }
 
-  /** Body-version history (newest first) — versions are immutable snapshots. */
-  async listVersions(
-    workspaceId: string,
-    id: string,
-  ): Promise<Array<{ version: number; created_at: string }> | undefined> {
+  /**
+   * Body-version history (newest first) — versions are immutable snapshots.
+   * Bodies are deliberately NOT included: `skill_versions` grows one row per
+   * save with no bound, and bodies are uncapped, so returning them here would
+   * make every Versions-tab mount pay for the skill's entire edit history.
+   * Fetch a body on demand via `getVersion`.
+   */
+  async listVersions(workspaceId: string, id: string): Promise<SkillVersion[] | undefined> {
     const skill = await this.deps.repo.getById(workspaceId, id);
     if (!skill) return undefined;
-    const rows = await this.deps.repo.listVersions(id);
-    return rows.map((r) => ({ version: r.version, created_at: r.createdAt.toISOString() }));
+    const rows = await this.deps.repo.listVersions(id); // newest first
+    // rows[i+1] is each row's predecessor; the oldest (last) diffs against ''.
+    return rows.map((r, i) => toSkillVersionDto(r, rows[i + 1]?.body ?? ''));
+  }
+
+  /** A single historical body snapshot. Undefined if the skill isn't in this
+   *  workspace, or that version was never recorded (route → 404 either way). */
+  async getVersion(
+    workspaceId: string,
+    id: string,
+    version: number,
+  ): Promise<SkillVersionDetail | undefined> {
+    const skill = await this.deps.repo.getById(workspaceId, id);
+    if (!skill) return undefined;
+    const rows = await this.deps.repo.listVersions(id); // newest first
+    const index = rows.findIndex((r) => r.version === version);
+    if (index === -1) return undefined;
+    return toSkillVersionDetailDto(rows[index]!, rows[index + 1]?.body ?? '');
+  }
+
+  /**
+   * Restore a historical body by writing it as a NEW version — history stays
+   * append-only (the immutable-snapshot promise the Versions tab makes), and
+   * `skills.version` never moves backwards. Restoring the CURRENT version is a
+   * genuine no-op: `update()` only versions on an actual body change, so this
+   * returns the unchanged skill with no new snapshot.
+   */
+  async restoreVersion(
+    workspaceId: string,
+    id: string,
+    version: number,
+    note?: string | null,
+  ): Promise<Skill | undefined> {
+    const skill = await this.deps.repo.getById(workspaceId, id);
+    if (!skill) return undefined;
+    const snapshot = await this.deps.repo.getVersion(id, version);
+    if (!snapshot) return undefined;
+    return this.update(workspaceId, id, { body: snapshot.body, note: note ?? null });
   }
 
   /**
@@ -107,5 +158,14 @@ export class SkillsService {
   /** Linked-skill count per agent, for the agent cards. */
   async countsByAgent(workspaceId: string): Promise<SkillCountRow[]> {
     return this.deps.repo.countsByAgent(workspaceId);
+  }
+
+  /** Linked-agent count per skill, for the skills rail's "N agents" footer. */
+  async statsBySkill(workspaceId: string): Promise<SkillListStats[]> {
+    const [skills, counts] = await Promise.all([
+      this.deps.repo.list(workspaceId),
+      this.deps.repo.countsBySkill(workspaceId),
+    ]);
+    return mergeSkillStats(skills, counts);
   }
 }

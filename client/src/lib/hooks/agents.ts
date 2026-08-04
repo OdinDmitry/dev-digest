@@ -139,8 +139,11 @@ export function useSetAgentSkills() {
     },
     onSettled: (_d, _e, { agentId }) => {
       qc.invalidateQueries({ queryKey: ["agent", agentId, "skills"] });
-      // The card's "N skills" badge comes from the stats rollup.
+      // The agent card's "N skills" badge comes from this rollup, and the
+      // skills rail's "N agents" footer is the same link table grouped the
+      // other way — both go stale on any attach/detach.
       qc.invalidateQueries({ queryKey: ["agents", "stats"] });
+      qc.invalidateQueries({ queryKey: ["skills", "stats"] });
     },
   });
 }

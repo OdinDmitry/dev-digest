@@ -33,12 +33,26 @@ export interface UpdateSkill {
   body?: string;
   enabled?: boolean;
   evidenceFiles?: string[] | null;
+  /**
+   * Author's "what changed?" note for the version snapshot this update would
+   * create. Named distinctly from `skills.*` fields (there is no `note` column
+   * on `skills` itself) so it can never be accidentally spread into the
+   * `skills` UPDATE — it is forwarded ONLY to `snapshotVersion`, and only when
+   * the body actually changed (see `update()`).
+   */
+  versionNote?: string | null;
 }
 
 /** Skills linked per agent, for the agent cards' "N skills" badge. */
 export interface SkillCountRow {
   agentId: string;
   skillCount: number;
+}
+
+/** Agents linked per skill, for the skill rail's "N agents" footer. */
+export interface AgentCountRow {
+  skillId: string;
+  agentCount: number;
 }
 
 export class SkillsRepository {
@@ -86,7 +100,9 @@ export class SkillsRepository {
         evidenceFiles: values.evidenceFiles ?? null,
       })
       .returning();
-    await this.snapshotVersion(row!.id, INITIAL_SKILL_VERSION, row!.body);
+    // v1 never carries a note — there is no prior version for the author to
+    // describe a change against.
+    await this.snapshotVersion(row!.id, INITIAL_SKILL_VERSION, row!.body, null);
     return row!;
   }
 
@@ -120,14 +136,25 @@ export class SkillsRepository {
       .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
       .returning();
 
-    if (bodyChanged && row) await this.snapshotVersion(row.id, nextVersion, row.body);
+    // A note attached to a patch that does NOT change the body has nothing to
+    // snapshot and is discarded here by design — the UI only shows the note
+    // field while the body is dirty, so this should never be reachable from
+    // the client, but the repository stays correct either way.
+    if (bodyChanged && row) {
+      await this.snapshotVersion(row.id, nextVersion, row.body, patch.versionNote ?? null);
+    }
     return row;
   }
 
-  private async snapshotVersion(skillId: string, version: number, body: string): Promise<void> {
+  private async snapshotVersion(
+    skillId: string,
+    version: number,
+    body: string,
+    note: string | null,
+  ): Promise<void> {
     await this.db
       .insert(t.skillVersions)
-      .values({ skillId, version, body })
+      .values({ skillId, version, body, note })
       .onConflictDoNothing();
   }
 
@@ -138,6 +165,15 @@ export class SkillsRepository {
       .from(t.skillVersions)
       .where(eq(t.skillVersions.skillId, skillId))
       .orderBy(desc(t.skillVersions.version));
+  }
+
+  /** A single body snapshot, or undefined if that version was never recorded. */
+  async getVersion(skillId: string, version: number): Promise<SkillVersionRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(t.skillVersions)
+      .where(and(eq(t.skillVersions.skillId, skillId), eq(t.skillVersions.version, version)));
+    return row;
   }
 
   /**
@@ -157,5 +193,24 @@ export class SkillsRepository {
       .where(eq(t.agents.workspaceId, workspaceId))
       .groupBy(t.agentSkills.agentId);
     return rows.map((r) => ({ agentId: r.agentId, skillCount: Number(r.skillCount) }));
+  }
+
+  /**
+   * Linked-agent count per skill for the whole workspace — ONE grouped query,
+   * mirroring `countsByAgent` above but grouped the other way. Skills with no
+   * linked agent are absent from the result; callers default them to 0.
+   */
+  async countsBySkill(workspaceId: string): Promise<AgentCountRow[]> {
+    const rows = await this.db
+      .select({
+        skillId: t.agentSkills.skillId,
+        // postgres-js returns count() as a string — cast in SQL AND coerce below.
+        agentCount: sql<number>`count(*)::int`,
+      })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+      .where(eq(t.skills.workspaceId, workspaceId))
+      .groupBy(t.agentSkills.skillId);
+    return rows.map((r) => ({ skillId: r.skillId, agentCount: Number(r.agentCount) }));
   }
 }

@@ -8,8 +8,9 @@ export const SKILL_TYPE_VALUES: readonly SkillType[] = [
   "custom",
 ];
 
-/** Card grid: as many ~260px columns as fit, so the preview pane can take the rest. */
-export const CARD_GRID_COLS = "repeat(auto-fill, minmax(240px, 1fr))";
+/** Width of the fixed left rail (matches the agent editor's list rail). */
+export const RAIL_WIDTH = 280;
 
-/** Width of the preview pane when a skill is selected. */
-export const PREVIEW_WIDTH = 460;
+/** Detail-pane tabs, validated against `?tab=`. */
+export const VALID_TABS = ["config", "preview", "versions"] as const;
+export type DetailTabKey = (typeof VALID_TABS)[number];

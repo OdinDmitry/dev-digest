@@ -66,6 +66,15 @@ export const MARKDOWN_EXTS: readonly string[] = ['.md', '.markdown'];
 /** Preferred body filename inside an archive (matched case-insensitively). */
 export const CORE_FILENAME = 'skill.md';
 
+// ---- Version history -------------------------------------------------------
+
+/**
+ * Cap on (n × m) cells for the line-delta LCS DP. At this size the DP is a few
+ * MB and a few ms; above it, `lineDelta` returns the cheap whole-line-replaced
+ * fallback instead of paying an unbounded cost on every version-list fetch.
+ */
+export const MAX_DELTA_CELLS = 4_000_000;
+
 /** Keyword → skill type, used when an upload declares no type of its own. */
 export const TYPE_PATTERNS: ReadonlyArray<readonly [RegExp, 'security' | 'convention' | 'rubric']> =
   [

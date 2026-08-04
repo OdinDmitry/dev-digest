@@ -126,6 +126,7 @@
   "listItem": {
     "needsVetting": "needs vetting",
     "vettingTitle": "Untrusted source — vet before enabling",
+    "agentCount": "{count, plural, one {# agent} other {# agents}}",
     "type": {
       "rubric": "rubric",
       "convention": "convention",
@@ -141,6 +142,9 @@
   },
   "preview": {
     "untrustedBadge": "untrusted source",
+    "tabLabel": "Preview",
+    "title": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it.",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "save": "Save",
@@ -153,5 +157,33 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "config": {
+    "tabLabel": "Config",
+    "title": "Configuration",
+    "unsaved": "unsaved",
+    "tokenCount": "{count, number} tokens",
+    "save": "Save",
+    "saving": "Saving…"
+  },
+  "versions": {
+    "tabLabel": "Versions",
+    "title": "Version history",
+    "count": "{count, plural, one {# version} other {# versions}}",
+    "subtitle": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored.",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "noteLabel": "What changed?",
+    "notePlaceholder": "What changed? (optional)",
+    "restoredNote": "Restored from v{version}",
+    "restoredToast": "Restored as v{version}.",
+    "row": {
+      "initial": "Initial version",
+      "delta": "+{added} −{removed} lines"
+    },
+    "diffTitle": "v{from} → v{to}",
+    "diffTooLarge": "This change is too large to diff in the browser.",
+    "diffEmpty": "No differences between these versions."
   }
 }

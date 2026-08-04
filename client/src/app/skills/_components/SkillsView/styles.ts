@@ -1,26 +1,34 @@
 import type { CSSProperties } from "react";
-import { CARD_GRID_COLS, PREVIEW_WIDTH } from "./constants";
+import { RAIL_WIDTH } from "./constants";
 
-/** Co-located styles for SkillsView. */
+/** Co-located styles for SkillsView — a fixed rail + a flexible detail pane,
+ *  mirroring `client/src/app/agents/[id]/page.tsx`. */
 export const s = {
-  // Grid + preview split the viewport below the topbar; only the two panes
-  // scroll, never the page.
   layout: { display: "flex", height: "calc(100vh - 52px)", minWidth: 0 } satisfies CSSProperties,
-  main: { flex: 1, overflow: "auto", minWidth: 0 } satisfies CSSProperties,
-  page: { padding: "24px 32px 44px", maxWidth: 1100, margin: "0 auto" } satisfies CSSProperties,
-  header: { display: "flex", alignItems: "center", gap: 14, marginBottom: 20 } satisfies CSSProperties,
-  headerText: { flex: 1, minWidth: 0 } satisfies CSSProperties,
-  h1: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" } satisfies CSSProperties,
-  subtitle: { fontSize: 14, color: "var(--text-secondary)", marginTop: 4 } satisfies CSSProperties,
-  search: {
+  rail: {
+    width: RAIL_WIDTH,
+    flexShrink: 0,
+    borderRight: "1px solid var(--border)",
+    display: "flex",
+    flexDirection: "column",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  railHeader: { padding: "16px 16px 12px" } satisfies CSSProperties,
+  railTitleRow: {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    padding: "8px 12px",
+    marginBottom: 14,
+  } satisfies CSSProperties,
+  h1: { fontSize: 18, fontWeight: 700, flex: 1 } satisfies CSSProperties,
+  search: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
     borderRadius: 7,
     border: "1px solid var(--border)",
-    background: "var(--bg-surface)",
-    width: 200,
+    background: "var(--bg-elevated)",
   } satisfies CSSProperties,
   searchIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
   searchInput: {
@@ -32,6 +40,19 @@ export const s = {
     outline: "none",
     color: "var(--text-primary)",
   } satisfies CSSProperties,
-  grid: { display: "grid", gridTemplateColumns: CARD_GRID_COLS, gap: 14 } satisfies CSSProperties,
-  preview: { width: PREVIEW_WIDTH, flexShrink: 0, minWidth: 0 } satisfies CSSProperties,
+  railList: { flex: 1, overflow: "auto", padding: "0 12px 12px" } satisfies CSSProperties,
+  railEmpty: {
+    fontSize: 12.5,
+    color: "var(--text-muted)",
+    padding: "8px 4px",
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+  detail: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 } satisfies CSSProperties,
+  detailLoading: {
+    flex: 1,
+    padding: 28,
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+  } satisfies CSSProperties,
 } as const;
