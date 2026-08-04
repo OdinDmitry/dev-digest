@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Icon, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { skillTypeChip } from "../../../../lib/skill-type";
+import { isUnvettedSkillSource } from "../../../../lib/skill-source";
 import { SOURCE_ICON } from "./helpers";
 import { s } from "./styles";
 
@@ -26,7 +27,7 @@ export function SkillListItem({
   onToggle?: (enabled: boolean) => void;
 }) {
   const t = useTranslations("skills");
-  const untrusted = skill.source !== "manual";
+  const untrusted = isUnvettedSkillSource(skill.source);
 
   return (
     <div

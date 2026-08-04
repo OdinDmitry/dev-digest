@@ -6,11 +6,12 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Markdown } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
+import { isUnvettedSkillSource } from "../../../../../../lib/skill-source";
 import { s } from "./styles";
 
 export function PreviewTab({ skill }: { skill: Skill }) {
   const t = useTranslations("skills");
-  const untrusted = skill.source !== "manual";
+  const untrusted = isUnvettedSkillSource(skill.source);
 
   return (
     <div style={s.wrap}>

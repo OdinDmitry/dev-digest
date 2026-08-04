@@ -1,6 +1,10 @@
 /* VersionsTab — body-version history for a skill: newest first, an optional
-   author note per snapshot (falling back to a computed line-delta summary),
-   and Diff / Restore for every row except the current one. */
+   author note per snapshot (falling back to a computed line-delta summary).
+   Every row gets Diff against its adjacent older snapshot when one exists
+   (including the current row — "what did I just change?" is the single most
+   common reason to open this tab); Restore is offered on every row except
+   the current one (restoring onto itself is a no-op). Only the oldest row,
+   with no older neighbour, has neither. */
 "use client";
 
 import React from "react";
@@ -80,30 +84,29 @@ export function VersionsTab({ skill }: { skill: Skill }) {
                 </div>
               </div>
               <div style={s.rowActions}>
-                {isNewest ? (
+                {isNewest && (
                   <Badge dot color="var(--ok)" bg="var(--ok-bg)">
                     {t("versions.current")}
                   </Badge>
-                ) : (
-                  <>
-                    {older && (
-                      <Button
-                        size="sm"
-                        icon="Eye"
-                        onClick={() => setDiffTarget({ from: older.version, to: v.version })}
-                      >
-                        {t("versions.diff")}
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      icon="History"
-                      disabled={restore.isPending}
-                      onClick={() => doRestore(v.version)}
-                    >
-                      {t("versions.restore")}
-                    </Button>
-                  </>
+                )}
+                {older && (
+                  <Button
+                    size="sm"
+                    icon="Eye"
+                    onClick={() => setDiffTarget({ from: older.version, to: v.version })}
+                  >
+                    {t("versions.diff")}
+                  </Button>
+                )}
+                {!isNewest && (
+                  <Button
+                    size="sm"
+                    icon="History"
+                    disabled={restore.isPending}
+                    onClick={() => doRestore(v.version)}
+                  >
+                    {t("versions.restore")}
+                  </Button>
                 )}
               </div>
             </div>

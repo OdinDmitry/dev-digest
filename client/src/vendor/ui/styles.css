@@ -182,6 +182,14 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+/* The square where a horizontal and vertical scrollbar meet (e.g. the
+   SkillBodyEditor's textarea, which scrolls both ways) defaults to the
+   browser's own white/light corner color unless styled — with no track/thumb
+   rules matching it, that reads as a stray white triangle against the dark
+   theme. */
+::-webkit-scrollbar-corner {
+  background: var(--bg-primary);
+}
 
 ::selection {
   background: var(--accent-bg);

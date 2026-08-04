@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Button, FormField, Icon, SelectInput, TextInput, Textarea, Toggle } from "@devdigest/ui";
 import type { Skill, SkillType } from "@devdigest/shared";
 import { useDeleteSkill, useUpdateSkill } from "../../../../../../lib/hooks/skills";
+import { isUnvettedSkillSource } from "../../../../../../lib/skill-source";
 import { useToast } from "../../../../../../lib/toast";
 import { SKILL_TYPE_VALUES } from "../../../SkillsView/constants";
 import { SkillBodyEditor } from "../SkillBodyEditor";
@@ -38,7 +39,7 @@ export function ConfigTab({ skill }: { skill: Skill }) {
     setNote("");
   }, [skill.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const untrusted = skill.source !== "manual";
+  const untrusted = isUnvettedSkillSource(skill.source);
   const bodyDirty = body !== skill.body;
   const dirty =
     bodyDirty ||

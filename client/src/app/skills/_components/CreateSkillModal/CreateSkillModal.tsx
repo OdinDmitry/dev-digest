@@ -11,6 +11,7 @@ import { useCreateSkill } from "../../../../lib/hooks/skills";
 import { useToast } from "../../../../lib/toast";
 import { SKILL_TYPE_VALUES } from "../SkillsView/constants";
 import { DEFAULT_SKILL_TYPE } from "./constants";
+import { s } from "./styles";
 
 export function CreateSkillModal({
   onClose,
@@ -59,23 +60,25 @@ export function CreateSkillModal({
         </div>
       }
     >
-      <FormField label={t("editor.nameLabel")} required>
-        <TextInput value={name} onChange={setName} placeholder={t("editor.namePlaceholder")} mono />
-      </FormField>
-      <FormField label={t("editor.descriptionLabel")} hint={t("editor.descriptionHint")} required>
-        <Textarea
-          value={description}
-          onChange={setDescription}
-          placeholder={t("editor.descriptionPlaceholder")}
-          rows={3}
-        />
-      </FormField>
-      <FormField label={t("editor.typeLabel")}>
-        <SelectInput value={type} onChange={(v) => setType(v as SkillType)} options={typeOptions} />
-      </FormField>
-      <FormField label={t("editor.bodyLabel")} hint={t("editor.bodyHint")}>
-        <Textarea value={body} onChange={setBody} placeholder={t("editor.bodyPlaceholder")} rows={12} mono />
-      </FormField>
+      <div style={s.body}>
+        <FormField label={t("editor.nameLabel")} required>
+          <TextInput value={name} onChange={setName} placeholder={t("editor.namePlaceholder")} mono />
+        </FormField>
+        <FormField label={t("editor.descriptionLabel")} hint={t("editor.descriptionHint")} required>
+          <Textarea
+            value={description}
+            onChange={setDescription}
+            placeholder={t("editor.descriptionPlaceholder")}
+            rows={3}
+          />
+        </FormField>
+        <FormField label={t("editor.typeLabel")}>
+          <SelectInput value={type} onChange={(v) => setType(v as SkillType)} options={typeOptions} />
+        </FormField>
+        <FormField label={t("editor.bodyLabel")} hint={t("editor.bodyHint")}>
+          <Textarea value={body} onChange={setBody} placeholder={t("editor.bodyPlaceholder")} rows={12} mono />
+        </FormField>
+      </div>
     </Modal>
   );
 }
