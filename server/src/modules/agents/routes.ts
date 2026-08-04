@@ -19,6 +19,7 @@ const VersionParams = z.object({
 /**
  * A2 — agents module (owner A2).
  *   GET    /agents                  → list (workspace-scoped)
+ *   GET    /agents/stats            → per-agent skill/run/cost rollup (cards)
  *   GET    /agents/:id              → one agent
  *   POST   /agents                  → create
  *   PUT    /agents/:id              → update / toggle enabled (versions config)
@@ -74,6 +75,17 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.list(workspaceId);
+  });
+
+  /**
+   * Per-agent rollup for the list cards. Declared before `/agents/:id` so the
+   * static segment can never be read as a uuid — find-my-way prefers static
+   * segments anyway, but a fall-through would surface as a confusing 422 from
+   * IdParams rather than a 404.
+   */
+  app.get('/agents/stats', async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.stats(workspaceId);
   });
 
   app.get('/agents/:id', { schema: { params: IdParams } }, async (req) => {

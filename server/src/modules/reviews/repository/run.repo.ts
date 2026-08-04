@@ -1,7 +1,48 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
+
+/** One agent's run rollup for the agents list. */
+export interface AgentRunStatsRow {
+  agentId: string;
+  runCount: number;
+  avgCostUsd: number | null;
+}
+
+/**
+ * Run count + mean cost per agent across the whole workspace — ONE grouped
+ * query, so the agents list never fans out into a request per card.
+ *
+ * `runCount` counts every run (that is what "N runs" means on the card), while
+ * Postgres' `avg()` ignores NULL costs on its own: an agent whose runs all
+ * failed comes back as `runCount > 0, avgCostUsd: null`, which the UI renders as
+ * "—" rather than a misleading $0.00.
+ */
+export async function runStatsByAgent(
+  db: Db,
+  workspaceId: string,
+): Promise<AgentRunStatsRow[]> {
+  const rows = await db
+    .select({
+      agentId: t.agentRuns.agentId,
+      // postgres-js hands aggregates back as strings — cast in SQL and coerce
+      // below, or the zod response schema rejects "3".
+      runCount: sql<number>`count(*)::int`,
+      avgCostUsd: sql<number | null>`avg(${t.agentRuns.costUsd})::double precision`,
+    })
+    .from(t.agentRuns)
+    .where(and(eq(t.agentRuns.workspaceId, workspaceId), sql`${t.agentRuns.agentId} is not null`))
+    .groupBy(t.agentRuns.agentId);
+
+  return rows
+    .filter((r): r is typeof r & { agentId: string } => r.agentId !== null)
+    .map((r) => ({
+      agentId: r.agentId,
+      runCount: Number(r.runCount),
+      avgCostUsd: r.avgCostUsd === null ? null : Number(r.avgCostUsd),
+    }));
+}
 
 // ---- in-flight / history --------------------------------------------------
 

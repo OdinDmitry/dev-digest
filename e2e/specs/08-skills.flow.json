@@ -1,0 +1,13 @@
+{
+  "name": "Skills library lists the seeded skills",
+  "description": "Loads /skills and confirms a seeded skill (test-coverage-rubric) renders as a card, then opens it and checks the preview pane shows the body. Exercises the skills route, its API fetch, and ?id= selection.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "test-coverage-rubric"], "label": "seeded skill card is visible" },
+    { "cmd": ["find", "text", "test-coverage-rubric", "click"], "label": "open the preview pane" },
+    { "cmd": ["wait", "--url", "id="], "label": "selection is reflected in the URL" },
+    { "cmd": ["wait", "--text", "Enumerate a branch for each of"], "label": "skill body renders in the preview" }
+  ]
+}

@@ -7,7 +7,14 @@ import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/share
 import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { useToast } from "../../../../../../../lib/toast";
 import { toModelOptions } from "../../../../../../../lib/model-label";
-import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
+import { approxTokens } from "../../../../../../../lib/tokens";
+import {
+  CI_FAIL_ON_VALUES,
+  OUTPUT_SCHEMA_VALUE,
+  PROMPT_TOKEN_BUDGET,
+  PROVIDER_OPTIONS,
+  STRATEGY_VALUES,
+} from "./constants";
 import { s } from "./styles";
 
 /** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
@@ -25,8 +32,9 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const [repoIntel, setRepoIntel] = React.useState(agent.repo_intel);
   const [enabled, setEnabled] = React.useState(agent.enabled);
 
-  // Reset local form when switching agents.
-  React.useEffect(() => {
+  // One reset path, shared by "switched agents" and the Cancel button, so the
+  // two can't drift as fields are added.
+  const resetForm = React.useCallback(() => {
     setName(agent.name);
     setDescription(agent.description);
     setProvider(agent.provider);
@@ -36,7 +44,15 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     setCiFailOn(agent.ci_fail_on);
     setRepoIntel(agent.repo_intel);
     setEnabled(agent.enabled);
+  }, [agent]);
+
+  // Reset local form when switching agents.
+  React.useEffect(() => {
+    resetForm();
   }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Estimated, not exact — a budget hint, recomputed as you type.
+  const promptTokens = approxTokens(systemPrompt);
 
   const { data: models } = useProviderModels(provider);
   // Show the price (USD per 1M in/out tokens) in the label when the provider
@@ -127,7 +143,15 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
         </label>
       </FormField>
-      <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
+      <FormField
+        label={t("config.systemPrompt")}
+        hint={t("config.systemPromptHint")}
+        right={
+          <span className="tnum" style={s.tokenCount(promptTokens > PROMPT_TOKEN_BUDGET)}>
+            {t("config.tokenCount", { count: promptTokens, budget: PROMPT_TOKEN_BUDGET })}
+          </span>
+        }
+      >
         <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />
       </FormField>
       <FormField label={t("config.outputSchema")}>
@@ -136,6 +160,9 @@ export function ConfigTab({ agent }: { agent: Agent }) {
       <div style={s.actions}>
         <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending}>
           {update.isPending ? t("config.saving") : t("config.save")}
+        </Button>
+        <Button onClick={resetForm} disabled={update.isPending}>
+          {t("config.cancel")}
         </Button>
         {update.isSuccess && (
           <span style={s.savedNote}>{t("config.saved", { version: update.data?.version })}</span>

@@ -140,6 +140,33 @@ export const CommunitySkill = z.object({
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
+// An archive entry the importer refused to read. Executable members are matched
+// on the zip's central directory BEFORE decompression, so a skipped entry is
+// never inflated, never parsed and never persisted — only its path is reported
+// so the import preview can show the user what was left out.
+export const SkillImportSkipped = z.object({
+  path: z.string(),
+  reason: z.enum(['executable', 'binary', 'too_large', 'unsupported']),
+});
+export type SkillImportSkipped = z.infer<typeof SkillImportSkipped>;
+
+// Result of POST /skills/import/preview — a parsed skill that has NOT been
+// written to the database. The client shows it for confirmation and then
+// creates the skill through the normal POST /skills path.
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  source: SkillSource,
+  body: z.string(),
+  /** Archive member the body came from; null for a plain markdown upload. */
+  entry_path: z.string().nullable(),
+  /** Other markdown paths found in the archive (paths only — bodies dropped). */
+  evidence_files: z.array(z.string()),
+  skipped: z.array(SkillImportSkipped),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
+
 // ---- Conventions ----
 export const ConventionCandidate = z.object({
   id: z.string(),
@@ -191,3 +218,45 @@ export const AgentSkillLink = z.object({
   order: z.number().int(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+// Per-agent rollup for the agent CARDS (GET /agents/stats) — one row per agent
+// in the workspace. Distinct from `AgentStats` in contracts/observability.ts,
+// which is the far richer per-agent detail payload (accept rate, severity
+// breakdown, trend) that GET /agents/:id/stats will serve in a later lesson.
+//
+// Deliberately NOT folded into `Agent`: that schema is also the response of
+// POST/PUT /agents, where a run rollup would always be zero and therefore
+// misleading. `avg_cost_usd` is null when no completed run recorded a cost —
+// the UI renders that as "—", never as $0.00.
+export const AgentListStats = z.object({
+  agent_id: z.string(),
+  skill_count: z.number().int(),
+  run_count: z.number().int(),
+  avg_cost_usd: z.number().nullable(),
+});
+export type AgentListStats = z.infer<typeof AgentListStats>;
+
+// The immutable config snapshot captured in `agent_versions` whenever an agent's
+// config changes (everything but `enabled`). Mirrors the shape written by the
+// agents repository — provider/model/prompt/output_schema/strategy/gate/repo_intel
+// plus the ordered skill ids linked at snapshot time. Used for reproducibility
+// (eval replays a past version) and for surfacing an agent's edit history.
+export const AgentVersionConfig = z.object({
+  provider: Provider,
+  model: z.string(),
+  system_prompt: z.string(),
+  output_schema: z.unknown().nullish(),
+  strategy: ReviewStrategy,
+  ci_fail_on: CiFailOn,
+  repo_intel: z.boolean(),
+  skills: z.array(z.string()),
+});
+export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
+
+export const AgentVersion = z.object({
+  agent_id: z.string(),
+  version: z.number().int(),
+  config: AgentVersionConfig,
+  created_at: z.string(),
+});
+export type AgentVersion = z.infer<typeof AgentVersion>;

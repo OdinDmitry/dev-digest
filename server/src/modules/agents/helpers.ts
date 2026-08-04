@@ -1,4 +1,11 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type {
+  Agent,
+  AgentListStats,
+  AgentVersion,
+  CiFailOn,
+  Provider,
+  ReviewStrategy,
+} from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
 import type { AgentRow, AgentVersionRow } from './repository.js';
 
@@ -39,6 +46,26 @@ export function toAgentVersionDto(row: AgentVersionRow): AgentVersion {
     config: AgentVersionConfig.parse(row.configJson),
     created_at: row.createdAt.toISOString(),
   };
+}
+
+/**
+ * Join the two grouped rollups onto the workspace's agents, defaulting agents
+ * that appear in neither to zeros. Pure so the "no runs yet / no skills yet"
+ * cases are testable without a database.
+ */
+export function mergeAgentStats(
+  agents: Pick<AgentRow, 'id'>[],
+  runStats: { agentId: string; runCount: number; avgCostUsd: number | null }[],
+  skillCounts: { agentId: string; skillCount: number }[],
+): AgentListStats[] {
+  const runs = new Map(runStats.map((r) => [r.agentId, r]));
+  const skills = new Map(skillCounts.map((s) => [s.agentId, s.skillCount]));
+  return agents.map((a) => ({
+    agent_id: a.id,
+    skill_count: skills.get(a.id) ?? 0,
+    run_count: runs.get(a.id)?.runCount ?? 0,
+    avg_cost_usd: runs.get(a.id)?.avgCostUsd ?? null,
+  }));
 }
 
 /** Fields whose change bumps the agent's config version (anything but `enabled`). */

@@ -182,6 +182,10 @@ export class ReviewRunExecutor {
       const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
+      // L02 — the agent's linked skills, resolved to bodies. Independent of the
+      // repo-intel toggle: skills are authored config, not derived context.
+      const skillBodies = await this.buildSkillBodies(agent.id, runLog);
+
       const task = taskLine(pull) + rankNote;
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
@@ -196,6 +200,10 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // L02 — resolved skill bodies in link order. Omitted when the agent has
+        // no enabled skills, so the prompt is byte-identical to the pre-skills
+        // shape and "skill off" is provably "block absent".
+        ...(skillBodies.length > 0 ? { skills: skillBodies } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -364,6 +372,41 @@ export class ReviewRunExecutor {
     }
     runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
     return out.join('\n');
+  }
+
+  /**
+   * L02 — resolve an agent's linked skills into the prompt's `## Skills / rules`
+   * slot.
+   *
+   * Two rules, both visible in the Live Log so a run can be audited without
+   * reading the trace: order comes from `agent_skills.order` (the Skills tab's
+   * drag order, already applied by `linkedSkills`), and a skill whose library
+   * toggle is OFF is skipped entirely rather than injected-but-ignored.
+   *
+   * Best-effort like the repo-intel builders: a lookup failure degrades the
+   * prompt instead of failing the run.
+   */
+  private async buildSkillBodies(agentId: string, runLog: RunLogger): Promise<string[]> {
+    let links;
+    try {
+      // NOTE: linkedSkills joins on agentId only — it is NOT workspace-scoped.
+      // Safe here because the agent row was already fetched workspace-scoped;
+      // don't reuse it anywhere the agent id is caller-supplied.
+      links = await this.agents.linkedSkills(agentId);
+    } catch (err) {
+      runLog.info(`skills: lookup failed — ${(err as Error).message}`);
+      return [];
+    }
+    if (links.length === 0) return [];
+
+    const enabled = links.filter((l) => l.skill.enabled);
+    const disabled = links.length - enabled.length;
+    runLog.info(
+      `Skills: ${enabled.length}/${links.length} linked skill(s) injected` +
+        (disabled > 0 ? ` (${disabled} disabled, skipped)` : '') +
+        (enabled.length > 0 ? ` — ${enabled.map((l) => l.skill.name).join(', ')}` : ''),
+    );
+    return enabled.map((l) => l.skill.body);
   }
 
   /**

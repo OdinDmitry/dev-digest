@@ -1,5 +1,6 @@
-/* AgentCard — model chip, skills count, enabled toggle. Stats are an A5 mount;
-   we render the provider/model + skill count here. */
+/* AgentCard — model chip, skills count, enabled toggle, and a run/cost footer.
+   The rollup props come from GET /agents/stats (one request for the whole
+   list); each is rendered only when supplied. */
 "use client";
 
 import React from "react";
@@ -7,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Badge, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
+import { formatCost } from "../../../../lib/format-cost";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
 
@@ -14,12 +16,17 @@ export function AgentCard({
   ag,
   active,
   skillCount,
+  runCount,
+  avgCostUsd,
   onClick,
   onToggle,
 }: {
   ag: Agent;
   active?: boolean;
   skillCount?: number;
+  runCount?: number;
+  /** null = no run recorded a cost; renders "—", never "$0.00". */
+  avgCostUsd?: number | null;
   onClick?: () => void;
   onToggle?: (enabled: boolean) => void;
 }) {
@@ -69,6 +76,11 @@ export function AgentCard({
           </Badge>
         )}
       </div>
+      {runCount != null && (
+        <div style={s.statsRow} className="tnum">
+          {t("card.runStats", { runs: runCount, cost: formatCost(avgCostUsd) })}
+        </div>
+      )}
     </div>
   );
 }

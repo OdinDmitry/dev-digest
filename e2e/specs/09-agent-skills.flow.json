@@ -1,0 +1,15 @@
+{
+  "name": "Agent editor Skills tab shows the linked skills in prompt order",
+  "description": "Opens the seeded Test Quality Reviewer and switches to its Skills tab, confirming its three linked skills render and the ordering hint is present. Exercises the tab routing and GET /agents/:id/skills.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the seeded L02 agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab (the Tabs kit renders plain buttons, not role=tab)" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "tab state is in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skill links settle" },
+    { "cmd": ["wait", "--text", "Order matters"], "label": "ordering hint is visible" },
+    { "cmd": ["wait", "--text", "mock-discipline"], "label": "a linked skill is listed" }
+  ]
+}

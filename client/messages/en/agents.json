@@ -1,7 +1,8 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "runStats": "{runs} runs · {cost} avg"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -62,7 +63,8 @@
     "modelEmptyHint": "No models loaded — set the {provider} API key in Settings → API Keys.",
     "modelSearch": "Search models…",
     "systemPrompt": "System prompt",
-    "systemPromptHint": "Loaded as the static system message. Enabled skills are appended below it.",
+    "systemPromptHint": "Loaded as the static system message. Skills are appended below it.",
+    "tokenCount": "{count, number} / {budget, number} tokens",
     "outputSchema": "Output schema",
     "outputSchemaOption": "Standard findings JSON",
     "strategy": "Review strategy",
@@ -84,6 +86,7 @@
     "repoIntelHint": "Inject repo context (repo skeleton, callers of changed symbols, and a 'high blast-radius' note) into this agent's review prompt. On by default. Turning it off sends only the diff — useful for cheap models or self-contained PRs.",
     "save": "Save agent",
     "saving": "Saving…",
+    "cancel": "Cancel",
     "saved": "Saved (v{version})",
     "savedToast": "Agent saved (v{version})"
   },
@@ -91,7 +94,10 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "dragDisabledHint": "Reordering is off while a filter is active, so hidden skills can't be dropped. Clear the filter to drag.",
+    "skillDisabled": "disabled in library",
+    "noSkills": "No skills in this workspace yet. Create or import one from the Skills page."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

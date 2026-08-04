@@ -13,6 +13,10 @@ export const s = {
     fontSize: 13,
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
+  tokenCount: (over: boolean): CSSProperties => ({
+    fontSize: 12,
+    color: over ? "var(--crit)" : "var(--text-muted)",
+  }),
   actions: { display: "flex", gap: 10, marginTop: 10 } satisfies CSSProperties,
   savedNote: { alignSelf: "center", fontSize: 13, color: "var(--ok)" } satisfies CSSProperties,
 } as const;

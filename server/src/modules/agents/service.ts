@@ -1,6 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
+  AgentListStats,
   AgentSkillLink,
   AgentVersion,
   CiFailOn,
@@ -9,7 +10,7 @@ import type {
   ReviewStrategy,
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { mergeAgentStats, toAgentDto, toAgentVersionDto } from './helpers.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -63,6 +64,20 @@ export class AgentsService {
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
     return row ? toAgentDto(row) : undefined;
+  }
+
+  /**
+   * Per-agent rollup for the agent cards: linked-skill count, run count and mean
+   * cost. Three queries total for the whole list (agents + two grouped rollups)
+   * — never one per card.
+   */
+  async stats(workspaceId: string): Promise<AgentListStats[]> {
+    const [agents, runStats, skillCounts] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.container.reviewRepo.runStatsByAgent(workspaceId),
+      this.container.skillsRepo.countsByAgent(workspaceId),
+    ]);
+    return mergeAgentStats(agents, runStats, skillCounts);
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */

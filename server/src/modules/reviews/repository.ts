@@ -82,6 +82,11 @@ export class ReviewRepository {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
   }
 
+  /** Run count + mean cost per agent for the whole workspace (agents list). */
+  runStatsByAgent(workspaceId: string): Promise<runRepo.AgentRunStatsRow[]> {
+    return runRepo.runStatsByAgent(this.db, workspaceId);
+  }
+
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);

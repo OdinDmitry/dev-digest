@@ -3,10 +3,14 @@
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
     "heading": "Skills",
+    "subtitle": "Reusable rule blocks. Attach them to agents to shape how a review is done.",
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
+    "noMatchTitle": "No matching skills",
+    "noMatchBody": "Try a different search term.",
     "menu": {
+      "create": "Create a skill",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -31,8 +35,8 @@
     }
   },
   "drawer": {
-    "title": "Add a skill",
-    "subtitle": "Import from a file, a URL, or search vetted community skills",
+    "title": "Import a skill",
+    "subtitle": "Upload a markdown file or a zip archive — nothing is saved until you confirm",
     "tabs": {
       "file": "From file",
       "url": "From URL",
@@ -40,12 +44,60 @@
     },
     "importFailed": "Import failed"
   },
+  "editor": {
+    "title": "Create a skill",
+    "subtitle": "A skill is text only — a rule block that becomes part of an agent's prompt",
+    "nameLabel": "Name",
+    "namePlaceholder": "test-coverage-rubric",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Use when a diff adds or changes tests…",
+    "descriptionHint": "This is the skill's interface — it is what you (and the agent) read to decide whether the skill applies. Write it directively: \"Use when …, then …\".",
+    "typeLabel": "Type",
+    "bodyLabel": "Body (Markdown)",
+    "bodyPlaceholder": "## my-rule\n\nWhat to check, and what to report…",
+    "bodyHint": "Inserted verbatim into the agent's prompt, in the order the agent's Skills tab defines.",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createdToast": "Created \"{name}\"."
+  },
+  "import": {
+    "previewTitle": "Preview",
+    "bodyTitle": "Skill body",
+    "evidenceTitle": "Other files kept as evidence",
+    "parsing": "Reading {filename}…",
+    "importing": "Importing…",
+    "confirm": "Import skill",
+    "cancel": "Cancel",
+    "importedToast": "Imported \"{name}\" — disabled until you enable it.",
+    "trustWarning": "This body becomes instructions inside your agent's prompt — the same standing as the prompt you wrote yourself. Read it before enabling the skill. It is imported disabled.",
+    "dropzone": {
+      "title": "Drop a skill file here",
+      "hint": "A .md file, or a .zip containing a SKILL.md. Executable files in an archive are never read.",
+      "browse": "Choose a file",
+      "selected": "Selected {filename}"
+    },
+    "skipped": {
+      "title": "Not imported",
+      "reason": {
+        "executable": "executable",
+        "binary": "binary",
+        "too_large": "too large",
+        "unsupported": "unsupported"
+      }
+    },
+    "errors": {
+      "unreadable": "Could not read that file. Upload a .md file or a .zip containing one."
+    }
+  },
   "file": {
     "nameLabel": "Skill name",
     "nameHint": "Optional — derived from the first heading if blank.",
     "namePlaceholder": "pr-quality-rubric",
     "bodyLabel": "Skill body (Markdown)",
-    "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions.",
+    "bodyHint": "This text becomes instructions inside your agent's prompt. Read it before you enable the skill.",
     "bodyPlaceholder": "# Rule\nDescribe the rule…",
     "importing": "Importing…",
     "import": "Import skill",
@@ -93,7 +145,11 @@
     "disabled": "Disabled",
     "save": "Save",
     "edit": "Edit",
-    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete skill \"{name}\"? It will be detached from every agent that links it.",
+    "savedToast": "Saved (v{version}).",
+    "evidenceTitle": "Evidence files",
+    "untrustedNotice": "This skill came from outside your workspace. Its body is added to the agent's prompt as instructions, so read it in full before enabling it.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"

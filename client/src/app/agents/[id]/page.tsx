@@ -9,10 +9,10 @@ import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/
 import { AppShell } from "../../../components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
 import { AgentEditor } from "./_components/AgentEditor";
-import { useAgents, useAgent, useUpdateAgent } from "../../../lib/hooks/agents";
+import { useAgents, useAgent, useAgentStats, useUpdateAgent } from "../../../lib/hooks/agents";
 import { ApiError } from "../../../lib/api";
 
-const VALID_TABS = ["config"];
+const VALID_TABS = ["config", "skills"];
 
 export default function AgentEditorPage() {
   const params = useParams<{ id: string }>();
@@ -22,7 +22,13 @@ export default function AgentEditorPage() {
 
   const { data: agents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
+  const { data: stats } = useAgentStats();
   const update = useUpdateAgent();
+
+  const statsById = React.useMemo(
+    () => new Map((stats ?? []).map((st) => [st.agent_id, st])),
+    [stats],
+  );
 
   const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
   const setTab = (t: string) => {
@@ -80,15 +86,25 @@ export default function AgentEditorPage() {
             </div>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "0 12px 12px" }}>
-            {(agents ?? []).map((a) => (
-              <AgentCard
-                key={a.id}
-                ag={a}
-                active={a.id === id}
-                onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
-                onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
-              />
-            ))}
+            {(agents ?? []).map((a) => {
+              const st = statsById.get(a.id);
+              return (
+                <AgentCard
+                  key={a.id}
+                  ag={a}
+                  active={a.id === id}
+                  {...(st
+                    ? {
+                        skillCount: st.skill_count,
+                        runCount: st.run_count,
+                        avgCostUsd: st.avg_cost_usd,
+                      }
+                    : {})}
+                  onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
+                  onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
+                />
+              );
+            })}
           </div>
         </div>
 
