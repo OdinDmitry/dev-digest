@@ -253,6 +253,25 @@ export interface CodeIndex {
   references(repo: RepoRef, symbol: string): Promise<CodeReference[]>;
 }
 
+// ---------- WebFetch (anonymous HTTPS text fetch for referenced docs) ----------
+export interface FetchTextResult {
+  text: string;
+  contentType: string;
+  truncated: boolean;
+}
+
+/**
+ * Fetch a referenced text document over anonymous HTTPS. Domain vocabulary
+ * ("fetch a referenced text document"), not an SDK wrapper — the real
+ * implementation (`adapters/webfetch/https.ts`) owns every SSRF guard
+ * (scheme, DNS/IP allowlist, redirects, timeout, byte cap, content-type).
+ * Returns `null` for anything rejected by those guards or that otherwise
+ * fails — never throws, so a caller can fold it straight into a MissingRef.
+ */
+export interface WebFetchClient {
+  fetchText(url: string): Promise<FetchTextResult | null>;
+}
+
 // ---------- Auth (pluggable; MVP = LocalNoAuthProvider) ----------
 export interface AuthUser {
   id: string;

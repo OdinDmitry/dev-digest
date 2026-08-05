@@ -127,6 +127,31 @@ describe("SeverityCounts", () => {
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
   });
 
+  it("dims every badge except the selected one, and does not dim any when nothing is selected", () => {
+    const onSelect = vi.fn();
+    const { rerender } = render(
+      <SeverityCounts
+        counts={{ critical: 1, warning: 2, suggestion: 0 }}
+        onSelect={onSelect}
+        selected="warning"
+      />,
+    );
+    const criticalBtn = screen.getByText("1").closest("button")!;
+    const warningBtn = screen.getByText("2").closest("button")!;
+    expect(criticalBtn.getAttribute("style")).toContain("opacity: 0.4");
+    expect(warningBtn.getAttribute("style")).toContain("opacity: 1");
+
+    rerender(
+      <SeverityCounts
+        counts={{ critical: 1, warning: 2, suggestion: 0 }}
+        onSelect={onSelect}
+        selected={null}
+      />,
+    );
+    expect(screen.getByText("1").closest("button")!.getAttribute("style")).toContain("opacity: 1");
+    expect(screen.getByText("2").closest("button")!.getAttribute("style")).toContain("opacity: 1");
+  });
+
   it("shows a loading state in the popup while popupLoading is true", () => {
     const { container } = render(
       <SeverityCounts counts={{ critical: 1, warning: 0, suggestion: 0 }} popupLoading />,

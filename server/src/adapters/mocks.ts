@@ -31,6 +31,8 @@ import type {
   AuthWorkspace,
   SecretsProvider,
   SecretKey,
+  WebFetchClient,
+  FetchTextResult,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
 
@@ -326,5 +328,23 @@ export class MockSecretsProvider implements SecretsProvider {
   constructor(private secrets: Partial<Record<string, string>> = {}) {}
   async get(key: SecretKey): Promise<string | undefined> {
     return this.secrets[key as string];
+  }
+}
+
+// ---------- Mock WebFetch ----------
+export interface MockWebFetchOptions {
+  /** Per-URL fixture; a URL with no entry (or a falsy entry) resolves to null. */
+  byUrl?: Record<string, FetchTextResult | null>;
+  /** Fallback result for any URL not present in `byUrl`. Defaults to null. */
+  default?: FetchTextResult | null;
+}
+
+export class MockWebFetchClient implements WebFetchClient {
+  public requested: string[] = [];
+  constructor(private opts: MockWebFetchOptions = {}) {}
+  async fetchText(url: string): Promise<FetchTextResult | null> {
+    this.requested.push(url);
+    if (this.opts.byUrl && url in this.opts.byUrl) return this.opts.byUrl[url] ?? null;
+    return this.opts.default ?? null;
   }
 }

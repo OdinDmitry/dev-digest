@@ -6,6 +6,7 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  WebFetchClient,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -30,6 +31,7 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { HttpsWebFetchClient } from '../adapters/webfetch/https.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -52,6 +54,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** intent module's SSRF-guarded referenced-doc fetcher — tests inject a mock. */
+  webfetch?: WebFetchClient;
 }
 
 export class Container {
@@ -78,6 +82,7 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _webfetch?: WebFetchClient;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -135,6 +140,14 @@ export class Container {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();
     return this._tokenizer;
+  }
+
+  /** SSRF-guarded anonymous HTTPS fetcher for the intent module's referenced
+   *  docs/plans. The composition root is the only place allowed to construct it. */
+  get webfetch(): WebFetchClient {
+    if (this.overrides.webfetch) return this.overrides.webfetch;
+    this._webfetch ??= new HttpsWebFetchClient();
+    return this._webfetch;
   }
 
   /**

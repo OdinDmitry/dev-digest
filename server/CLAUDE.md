@@ -14,7 +14,8 @@ told otherwise. At the end of the task, update it; don't skip this step.
 
 ## Where things live
 - `src/modules/<name>/routes.ts` — one Fastify plugin per domain: `agents`,
-  `polling`, `pulls`, `repo-intel`, `repos`, `reviews`, `settings`, `workspace`
+  `intent`, `polling`, `pulls`, `repo-intel`, `repos`, `reviews`, `settings`,
+  `workspace`
 - `src/adapters/*` — ports (llm, github, git, astgrep, secrets, tokenizer,
   embedder, depgraph, codeindex), swapped for `adapters/mocks.ts` in tests
 - `src/platform/container.ts` — DI wiring · `src/platform/config.ts` — env config

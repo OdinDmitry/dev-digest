@@ -6,8 +6,9 @@
     { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
     { "cmd": ["wait", "--text", "test-coverage-rubric"], "label": "seeded skill card is visible" },
-    { "cmd": ["find", "text", "test-coverage-rubric", "click"], "label": "open the preview pane" },
+    { "cmd": ["find", "text", "test-coverage-rubric", "click"], "label": "open the skill detail pane" },
     { "cmd": ["wait", "--url", "id="], "label": "selection is reflected in the URL" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to the Preview tab" },
     { "cmd": ["wait", "--text", "Enumerate a branch for each of"], "label": "skill body renders in the preview" }
   ]
 }
