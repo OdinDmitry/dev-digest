@@ -21,6 +21,7 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+export type { FindingLocation } from './repository/review.repo.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -37,6 +38,16 @@ export class ReviewRepository {
 
   getPrFiles(prId: string): Promise<(typeof t.prFiles.$inferSelect)[]> {
     return pullRepo.getPrFiles(this.db, prId);
+  }
+
+  /** Workspace-scoped existence check — no row returned. */
+  pullExists(workspaceId: string, prId: string): Promise<boolean> {
+    return pullRepo.pullExists(this.db, workspaceId, prId);
+  }
+
+  /** Domain-projected `pr_files` summary (path/additions/deletions only). */
+  prFileSummaries(prId: string): Promise<{ path: string; additions: number; deletions: number }[]> {
+    return pullRepo.prFileSummaries(this.db, prId);
   }
 
   // ---- reviews + findings -------------------------------------------------
@@ -66,6 +77,12 @@ export class ReviewRepository {
 
   getReview(reviewId: string): Promise<ReviewRow | undefined> {
     return reviewRepo.getReview(this.db, reviewId);
+  }
+
+  /** Undismissed findings from each agent's own latest review of this PR —
+   *  the one read Smart Diff needs (see `review.repo.ts` for semantics). */
+  latestFindingLocations(prId: string): Promise<reviewRepo.FindingLocation[]> {
+    return reviewRepo.latestFindingLocations(this.db, prId);
   }
 
   /** In-flight runs for a PR (status='running') — the server-side source of

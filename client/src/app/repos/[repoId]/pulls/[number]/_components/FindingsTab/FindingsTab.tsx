@@ -41,6 +41,10 @@ interface FindingsTabProps {
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
+  /** Finding-level navigation target (Smart Diff marker → Agent runs tab,
+   *  §10) — owned by `page.tsx` so it survives this tab unmounting. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
 }
 
 export function FindingsTab({
@@ -57,6 +61,8 @@ export function FindingsTab({
   onOpenTrace,
   onDelete,
   onRunDone,
+  targetFindingId = null,
+  targetFindingNonce = 0,
 }: FindingsTabProps) {
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
@@ -97,6 +103,12 @@ export function FindingsTab({
   const handleSelectSeverity = useCallback((key: SeverityKey) => {
     setSelectedSeverity((cur) => (cur === key ? null : key));
   }, []);
+  // A NEW finding target (nonce changed) escapes the severity filter — it
+  // must never hide the finding the user just navigated to (§10).
+  React.useEffect(() => {
+    if (targetFindingId) setSelectedSeverity(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingNonce]);
   const aggregateCounts = React.useMemo(
     () => countBySeverity(latestReviewPerAgent(runs).flatMap((r) => r.findings)),
     [runs],
@@ -207,6 +219,8 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            targetFindingId={targetFindingId}
+            targetFindingNonce={targetFindingNonce}
             severityFilter={selectedSeverity}
           />
         ))

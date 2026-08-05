@@ -14,9 +14,13 @@ import { FileCard } from "../FileCard";
 export function DiffViewer({
   files,
   commenting,
+  renderLineMarker,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
+  /** Optional per-line marker slot — see `CodeLine`'s doc comment. Passed
+   *  straight through; this layer stays domain-free. */
+  renderLineMarker?: (args: { path: string; line: number }) => React.ReactNode;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -25,7 +29,7 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f, i) => (
-        <FileCard key={i} file={f} commenting={commenting} />
+        <FileCard key={i} file={f} commenting={commenting} renderLineMarker={renderLineMarker} />
       ))}
     </div>
   );

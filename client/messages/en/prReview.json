@@ -57,8 +57,11 @@
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
-    "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "findingLines": "{count} findings",
+    "groupedByRole": "Smart Diff · grouped by role",
+    "orderSmart": "Smart order",
+    "orderOriginal": "Original order",
+    "largeFile": "Large file"
   },
   "list": {
     "breadcrumb": "Pull Requests",

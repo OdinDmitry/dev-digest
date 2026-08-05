@@ -32,6 +32,8 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  targetFindingId = null,
+  targetFindingNonce = 0,
   severityFilter,
 }: {
   review: ReviewRecord;
@@ -43,6 +45,12 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** Finding-level navigation target (Smart Diff marker → Agent runs tab,
+   *  §10). When this run owns the target finding, the accordion opens —
+   *  it does NOT scroll itself; the card's own scroll (FindingsPanel) is the
+   *  more precise target and would otherwise fight this one. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
   /** Page-level severity click-filter (from FindingsTab's aggregate counter). */
   severityFilter?: SeverityKey | null;
 }) {
@@ -55,6 +63,10 @@ export function ReviewRunAccordion({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
+  React.useEffect(() => {
+    if (targetFindingId && review.findings.some((f) => f.id === targetFindingId)) setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce, review.findings]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
@@ -157,6 +169,8 @@ export function ReviewRunAccordion({
             repoFullName={repoFullName}
             headSha={headSha}
             severityFilter={severityFilter}
+            targetFindingId={targetFindingId}
+            targetFindingNonce={targetFindingNonce}
           />
         </div>
       )}

@@ -14,11 +14,21 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  renderLineMarker,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  /** Optional per-line marker slot, injected by the caller — this layer knows
+   *  nothing about what the returned node is (no "finding"/"severity"
+   *  vocabulary here). Called only for lines with a new-side line number
+   *  (`ln.newNo != null` — deleted lines have no new-side line and never get
+   *  a marker). Rendered once as a fixed-width gutter slot so its presence
+   *  never shifts the code text column, even when it returns nothing for a
+   *  given line. Omitting this prop renders nothing extra at all — existing
+   *  callers are byte-identical. */
+  renderLineMarker?: (args: { path: string; line: number }) => React.ReactNode;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -42,6 +52,11 @@ export function CodeLine({
       onMouseLeave={() => setHover(false)}
     >
       <div style={lineRowFor(ln.kind)}>
+        {renderLineMarker && (
+          <span style={s.markerSlot}>
+            {ln.newNo != null ? renderLineMarker({ path, line: ln.newNo }) : null}
+          </span>
+        )}
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button

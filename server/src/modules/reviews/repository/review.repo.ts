@@ -1,10 +1,23 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { Finding } from '@devdigest/shared';
 import type { FindingRow, PullRow } from '../../../db/rows.js';
+import { pickLatestReviewIdPerAgent } from '../helpers.js';
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
+
+/**
+ * One finding's location, for callers (Smart Diff) that need to place a
+ * marker on an exact (file, line) without loading the full `ReviewDto`
+ * shape. Row types die here — never returned as `FindingRow`.
+ */
+export interface FindingLocation {
+  findingId: string;
+  file: string;
+  line: number;
+  severity: string;
+}
 
 // ---- reviews + findings ---------------------------------------------------
 
@@ -71,6 +84,36 @@ export async function reviewsForPull(
     review,
     findings: findings.filter((f) => f.reviewId === review.id),
   }));
+}
+
+/**
+ * Undismissed findings from each agent's own latest `kind: 'review'` row for
+ * a PR — the read Smart Diff (`modules/smart-diff/`) needs. Semantics per
+ * `pickLatestReviewIdPerAgent` (this module's `helpers.ts`); do not build a
+ * second read path for `findings` outside this repository
+ * (`server/insights.md`, 2026-08-05, duplicate `pr_intent` accessors lesson).
+ */
+export async function latestFindingLocations(db: Db, prId: string): Promise<FindingLocation[]> {
+  const reviewRows = await db
+    .select({ id: t.reviews.id, agentId: t.reviews.agentId, createdAt: t.reviews.createdAt })
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, prId), eq(t.reviews.kind, 'review')))
+    .orderBy(desc(t.reviews.createdAt), desc(t.reviews.id));
+
+  const latestIds = pickLatestReviewIdPerAgent(reviewRows);
+  if (latestIds.length === 0) return [];
+
+  const rows = await db
+    .select({
+      id: t.findings.id,
+      file: t.findings.file,
+      startLine: t.findings.startLine,
+      severity: t.findings.severity,
+    })
+    .from(t.findings)
+    .where(and(inArray(t.findings.reviewId, latestIds), isNull(t.findings.dismissedAt)));
+
+  return rows.map((r) => ({ findingId: r.id, file: r.file, line: r.startLine, severity: r.severity }));
 }
 
 export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | undefined> {

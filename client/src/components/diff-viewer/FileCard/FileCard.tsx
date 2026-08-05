@@ -30,7 +30,17 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  renderLineMarker,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  /** Optional per-line marker slot — see `CodeLine`'s doc comment. Passed
+   *  straight through; this layer stays domain-free. */
+  renderLineMarker?: (args: { path: string; line: number }) => React.ReactNode;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
@@ -85,6 +95,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                renderLineMarker={renderLineMarker}
               />
             ))
           )}

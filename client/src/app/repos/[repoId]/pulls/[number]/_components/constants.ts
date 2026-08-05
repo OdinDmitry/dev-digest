@@ -1,4 +1,7 @@
-/** Constants for FindingCard. */
+/** Constants shared across the PR-detail route's `_components/` (findings
+ *  severity colour, used by `FindingCard`, `RunTraceDrawer`'s
+ *  `FindingsSection`, and `DiffTab`'s `SmartDiffViewer`). Sibling-level file,
+ *  following the precedent of `pulls/constants.ts` one level up. */
 
 /** Severity → CSS colour token. */
 export const SEV_COLOR: Record<string, string> = {

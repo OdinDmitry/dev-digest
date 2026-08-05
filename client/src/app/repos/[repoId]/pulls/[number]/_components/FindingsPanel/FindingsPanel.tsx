@@ -19,6 +19,8 @@ export function FindingsPanel({
   repoFullName,
   headSha,
   severityFilter,
+  targetFindingId = null,
+  targetFindingNonce = 0,
 }: {
   findings: FindingRecord[];
   prId: string;
@@ -26,6 +28,11 @@ export function FindingsPanel({
   headSha?: string | null;
   /** Page-level severity click-filter (from FindingsTab's aggregate counter). */
   severityFilter?: SeverityKey | null;
+  /** Finding-level navigation target (Smart Diff marker → Agent runs tab, §10).
+   *  When it matches a finding in `findings`, this panel reveals + scrolls to
+   *  it, clearing the `hideLow` filter first if that's what was hiding it. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
@@ -36,6 +43,27 @@ export function FindingsPanel({
     () => visibleFindings(findings, hideLow, severityFilter),
     [findings, hideLow, severityFilter],
   );
+
+  // Finding-level navigation target: reveal + scroll to it. Only fires once
+  // the owning accordion is open (this panel doesn't render until then), so
+  // no requestAnimationFrame/setTimeout sequencing is needed. A no-op when
+  // the id matches nothing here (e.g. a stale/empty `findings`).
+  React.useEffect(() => {
+    if (!targetFindingId) return;
+    const idx = shown.findIndex((f) => f.id === targetFindingId);
+    if (idx !== -1) {
+      setFocusIdx(idx);
+      document
+        .getElementById(`finding-${targetFindingId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // Present in the full list but hidden by the low-confidence filter —
+    // clear it; the effect re-fires once `shown` updates and takes the
+    // branch above.
+    if (findings.some((f) => f.id === targetFindingId)) setHideLow(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce, shown]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {

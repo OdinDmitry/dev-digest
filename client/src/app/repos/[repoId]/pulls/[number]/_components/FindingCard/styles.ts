@@ -16,6 +16,9 @@ export const s = {
     opacity: muted ? 0.6 : 1,
     transition: "opacity .2s, border-color .12s, box-shadow .12s",
     boxShadow: focused ? "0 0 0 1px " + sevColor : "none",
+    // Room for sticky chrome above when this card is scrolled to directly
+    // (Smart Diff marker → Agent runs tab navigation, §10).
+    scrollMarginTop: 16,
   }),
   header: {
     display: "flex",

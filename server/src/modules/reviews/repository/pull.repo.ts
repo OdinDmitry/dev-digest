@@ -33,6 +33,30 @@ export async function getPrFiles(
   return db.select().from(t.prFiles).where(eq(t.prFiles.prId, prId));
 }
 
+/** Workspace-scoped existence check — for callers (e.g. `SmartDiffService`)
+ *  that only need to decide whether to throw `NotFoundError`, never the row
+ *  itself. Row types must not cross the repository boundary into a service. */
+export async function pullExists(db: Db, workspaceId: string, prId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: t.pullRequests.id })
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, prId)));
+  return !!row;
+}
+
+/** Domain-projected `pr_files` summary (path/additions/deletions only) — for
+ *  callers that need per-file change stats but not the full row (patch, id,
+ *  prId). Mirrors `latestFindingLocations`'s explicit `.select({...})` shape. */
+export async function prFileSummaries(
+  db: Db,
+  prId: string,
+): Promise<{ path: string; additions: number; deletions: number }[]> {
+  return db
+    .select({ path: t.prFiles.path, additions: t.prFiles.additions, deletions: t.prFiles.deletions })
+    .from(t.prFiles)
+    .where(eq(t.prFiles.prId, prId));
+}
+
 /**
  * Record the commit a review just ran against, so the PR list can derive
  * `reviewed` vs `needs_review` (head moved since the last review) vs `stale`.

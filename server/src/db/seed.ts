@@ -127,6 +127,13 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
       { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
       { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
+      // L03 Smart Diff (plan §13): two `boilerplate`-classified rows so the
+      // "lockfiles start collapsed" + large-file-highlight signals are both
+      // demonstrable without a live GitHub token. `pnpm-lock.yaml` is also
+      // over `LARGE_FILE_LINES` (client SmartDiffViewer constant), so it
+      // exercises both signals at once.
+      { prId: pr!.id, path: 'pnpm-lock.yaml', additions: 412, deletions: 87 },
+      { prId: pr!.id, path: 'dist/bundle.min.js', additions: 1, deletions: 1 },
     ]);
 
     // pr_commits

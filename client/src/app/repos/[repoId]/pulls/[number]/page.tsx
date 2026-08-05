@@ -18,6 +18,7 @@ import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import { smartDiffKey } from "../../../../../lib/hooks/smart-diff";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
@@ -66,6 +67,17 @@ export default function PRDetailPage() {
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
   const setTab = (t: string) => setParam("tab", t);
+
+  // Finding-level navigation target (Smart Diff marker → Agent runs tab,
+  // §10). Lives here, NOT in FindingsTab, because FindingsTab is unmounted
+  // while the Files changed tab is active — page.tsx stays mounted across
+  // tab changes (the tab is a query param on this same route), so the
+  // target survives the switch.
+  const [findingTarget, setFindingTarget] = React.useState<{ id: string; n: number } | null>(null);
+  const handleOpenFinding = (findingId: string) => {
+    setFindingTarget((p) => ({ id: findingId, n: (p?.n ?? 0) + 1 }));
+    setTab("findings");
+  };
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -157,7 +169,10 @@ export default function PRDetailPage() {
               invalidateActiveRuns();
               invalidateRunHistory();
               refetchReviews();
+              if (prId) qc.invalidateQueries({ queryKey: smartDiffKey(prId) });
             }}
+            targetFindingId={findingTarget?.id ?? null}
+            targetFindingNonce={findingTarget?.n ?? 0}
           />
         )}
 
@@ -167,6 +182,8 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            findings={allFindings}
+            onOpenFinding={handleOpenFinding}
           />
         )}
       </div>

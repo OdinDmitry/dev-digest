@@ -52,6 +52,32 @@ export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
   };
 }
 
+/**
+ * Each agent's own most recent `kind: 'review'` row — the server-side twin of
+ * the client's `latestReviewPerAgent` (`client/src/app/repos/[repoId]/pulls/helpers.ts`).
+ * `rows` MUST already be ordered newest-first (`createdAt DESC, id DESC` —
+ * see `latestFindingLocations`, `repository/review.repo.ts`), and this
+ * function does not re-sort. A re-run of the SAME agent supersedes its own
+ * older review; a null `agentId` never merges with another review (its own
+ * bucket via the review id) — same rule as `modules/pulls/routes.ts:159`.
+ * Used by Smart Diff (constraint 14 / `server/insights.md` 2026-07-30) so the
+ * "which findings count" semantics never drift between the PR list, the
+ * Findings tab, and Smart Diff.
+ */
+export function pickLatestReviewIdPerAgent(
+  rows: { id: string; agentId: string | null }[],
+): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const r of rows) {
+    const key = r.agentId ?? `review:${r.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ids.push(r.id);
+  }
+  return ids;
+}
+
 export function reviewToDto(
   review: ReviewRow,
   findings: FindingRow[],

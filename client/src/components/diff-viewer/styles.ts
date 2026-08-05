@@ -49,6 +49,15 @@ export const s = {
     background: "var(--accent-bg)",
     padding: "0 14px",
   } satisfies CSSProperties,
+  /** Fixed-width gutter slot for the caller-supplied `renderLineMarker` node
+   *  (neutral positioning only — colour/iconography lives in the caller). */
+  markerSlot: {
+    width: 18,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  } satisfies CSSProperties,
   lineNo: {
     width: 44,
     textAlign: "right",
