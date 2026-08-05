@@ -180,6 +180,33 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
+  // ---- L03: seed a pr_intent row for PR #482 ----
+  // Idempotent (upsert on the pr_id PK) — and REQUIRED so opening the seeded
+  // PR's Overview tab never fires an auto-compute POST /pulls/:id/intent (no
+  // persisted row = null = the card's once-per-mount auto-compute would fire).
+  // This is what keeps e2e flows 02/04/05 (which all land on this PR's
+  // Overview tab) model-free.
+  await db
+    .insert(t.prIntent)
+    .values({
+      prId: pr!.id,
+      intent:
+        'Add token-bucket rate limiting to the public API endpoints so unauthenticated ' +
+        'clients cannot abuse them.',
+      inScope: ['public API rate limiting', 'request throttling middleware', 'public endpoint configuration'],
+      outOfScope: ['authentication/authorization changes', 'internal/admin API endpoints', 'billing or quota changes'],
+    })
+    .onConflictDoUpdate({
+      target: t.prIntent.prId,
+      set: {
+        intent:
+          'Add token-bucket rate limiting to the public API endpoints so unauthenticated ' +
+          'clients cannot abuse them.',
+        inScope: ['public API rate limiting', 'request throttling middleware', 'public endpoint configuration'],
+        outOfScope: ['authentication/authorization changes', 'internal/admin API endpoints', 'billing or quota changes'],
+      },
+    });
+
   // ---- built-in agents (the three starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [

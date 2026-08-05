@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
@@ -8,6 +8,9 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { IntentService } from '../intent/service.js';
+import { PrIntentRepository } from '../intent/repository.js';
+import { RepoRepository } from '../repos/repository.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -41,11 +44,24 @@ export type RunOutcome = {
  * review. Per-agent failures are isolated.
  */
 export class ReviewRunExecutor {
+  private intentService: IntentService;
+
   constructor(
     private container: Container,
     private repo: ReviewRepository,
     private agents: Container['agentsRepo'],
-  ) {}
+  ) {
+    // L03 — one intent classification per run batch (not per agent), reusing
+    // the same `ReviewRepository` this executor already has for PR/pr_files
+    // lookup (its `getPull`/`getRepo`/`getPrFiles` satisfy IntentService's
+    // `pulls` dep — see modules/intent/service.ts).
+    this.intentService = new IntentService(container, {
+      intents: new PrIntentRepository(container.db),
+      repos: new RepoRepository(container.db),
+      pulls: this.repo,
+      webfetch: container.webfetch,
+    });
+  }
 
   /**
    * Background execution of the queued agent runs (NOT awaited by the route).
@@ -105,6 +121,23 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // L03 — ONE intent classification per run batch, before the per-agent
+    // loop (not once per agent): reuse the persisted row if present, else
+    // compute and persist. Non-fatal — a failure here degrades the batch to
+    // NO intent (prompt byte-identical to pre-L03), never fails the review.
+    let intent: Intent | undefined;
+    try {
+      const record = await runLog.step(
+        'Deriving PR intent',
+        () => this.intentService.ensure(workspaceId, pull.id, { diff, logger }),
+        { kind: 'tool' },
+      );
+      intent = { intent: record.intent, in_scope: record.in_scope, out_of_scope: record.out_of_scope };
+    } catch {
+      // runLog.step already emitted the error event (fanned out to every
+      // queued run) and mirrored it to stdout — swallow here and continue.
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +145,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intent, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -141,6 +174,7 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
     diff: UnifiedDiff,
+    intent: Intent | undefined,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -212,6 +246,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // L03 — derived intent/scope, computed once per run batch above.
+        // Omitted when absent/failed, so the prompt stays byte-identical.
+        ...(intent ? { intent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
