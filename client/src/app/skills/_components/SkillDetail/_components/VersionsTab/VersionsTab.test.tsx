@@ -49,6 +49,12 @@ function renderTab() {
 beforeEach(() => {
   get.mockImplementation((path: string) => {
     if (path === "/skills/s1/versions") return Promise.resolve(VERSIONS);
+    const versionDetail = path.match(/^\/skills\/s1\/versions\/(\d+)$/);
+    if (versionDetail) {
+      const version = Number(versionDetail[1]);
+      const row = VERSIONS.find((v) => v.version === version)!;
+      return Promise.resolve({ ...row, body: `body v${version}` });
+    }
     throw new Error(`unexpected GET ${path}`);
   });
   post.mockResolvedValue({ ...SKILL, version: 4, body: "restored body" });
@@ -71,16 +77,26 @@ describe("VersionsTab", () => {
     expect(screen.getByText("Initial version")).toBeInTheDocument();
   });
 
-  it("shows Diff + Restore on every row except the current one", async () => {
+  it("offers Diff on every row with an older neighbour, including the current one; Restore everywhere but current", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByText("Tightened scope")).toBeInTheDocument());
 
     const diffButtons = screen.getAllByRole("button", { name: "Diff" });
     const restoreButtons = screen.getAllByRole("button", { name: "Restore" });
-    // v3 (current) gets neither; v2 gets both; v1 gets Restore only (no older
-    // version to diff against).
-    expect(diffButtons).toHaveLength(1);
+    // v3 (current) gets Diff (against v2) but not Restore; v2 gets both;
+    // v1 gets neither Diff (no older version) nor Restore (n/a — covered by
+    // the dedicated restore test), just present in the list.
+    expect(diffButtons).toHaveLength(2);
     expect(restoreButtons).toHaveLength(2);
+  });
+
+  it("diffing the current version compares it against its immediate predecessor", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByText("Tightened scope")).toBeInTheDocument());
+
+    // The current row (v3) is the first "Diff" button in the newest-first list.
+    fireEvent.click(screen.getAllByRole("button", { name: "Diff" })[0]!);
+    await waitFor(() => expect(screen.getByText("v2 → v3")).toBeInTheDocument());
   });
 
   it("restoring posts the version and a computed note", async () => {

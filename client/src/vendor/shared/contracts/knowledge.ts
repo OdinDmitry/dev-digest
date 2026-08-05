@@ -201,15 +201,64 @@ export const SkillListStats = z.object({
 export type SkillListStats = z.infer<typeof SkillListStats>;
 
 // ---- Conventions ----
+// pending: not yet reviewed by the user · accepted/rejected: explicit user
+// decision. Only `accepted` candidates are eligible to merge into a skill.
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  repo_id: z.string().nullable(),
+  category: z.string().nullable(),
   rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
-  confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  evidence_path: z.string().nullable(),
+  // Real 1-based line numbers in the sampled file — grounded server-side
+  // against the actual clone before persisting (never model-trusted).
+  evidence_start_line: z.number().int().nullable(),
+  evidence_end_line: z.number().int().nullable(),
+  evidence_snippet: z.string().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  status: ConventionStatus,
+  // Commit sha the sample was read at — keeps the GitHub evidence link
+  // stable even after the repo's default branch moves past this scan.
+  scanned_sha: z.string().nullable(),
+  created_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+// Result of POST /repos/:id/conventions/extract.
+export const ConventionExtractResult = z.object({
+  candidates: z.array(ConventionCandidate),
+  scanned_files: z.array(z.string()),
+});
+export type ConventionExtractResult = z.infer<typeof ConventionExtractResult>;
+
+// Body for PUT /conventions/:id — accept/reject/edit one candidate.
+export const ConventionUpdateInput = z.object({
+  rule: z.string().min(1).optional(),
+  category: z.string().nullable().optional(),
+  status: ConventionStatus.optional(),
+});
+export type ConventionUpdateInput = z.infer<typeof ConventionUpdateInput>;
+
+// Body for POST /repos/:id/conventions/merge-preview.
+export const ConventionMergePreviewRequest = z.object({
+  convention_ids: z.array(z.string()).min(1),
+});
+export type ConventionMergePreviewRequest = z.infer<typeof ConventionMergePreviewRequest>;
+
+// Result of POST /repos/:id/conventions/merge-preview — a draft skill built
+// from the given conventions. Writes NOTHING; the client shows it for
+// confirmation/editing and then creates the skill via the normal POST /skills
+// (source: 'extracted'), same "preview, don't persist" shape as skill import.
+export const ConventionMergePreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  evidence_files: z.array(z.string()),
+});
+export type ConventionMergePreview = z.infer<typeof ConventionMergePreview>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);

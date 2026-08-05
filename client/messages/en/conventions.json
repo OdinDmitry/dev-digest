@@ -15,12 +15,35 @@
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "subtitleScanned": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {when}",
+    "subtitleCandidatesOnly": "{count, plural, one {# candidate} other {# candidates}} · last scan {when}",
+    "deselectAll": "Deselect all",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "createSkill": "Create skill"
   },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
     "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "acceptAsSkill": "Accept as Skill",
+    "detectedIn": "Detected in",
+    "accept": "Accept",
+    "reject": "Reject",
+    "rejected": "Rejected",
+    "delete": "Delete"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "subtitleMerged": "Merged from {count, plural, one {# accepted convention} other {# accepted conventions}} in {repo}. Everything below is editable before you save.",
+    "nameLabel": "Name",
+    "descriptionLabel": "Description",
+    "typeLabel": "Type",
+    "bodyLabel": "Skill body",
+    "enabledLabel": "Enabled",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createdToast": "Created \"{name}\"."
   }
 }
