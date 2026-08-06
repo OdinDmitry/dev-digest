@@ -4,8 +4,13 @@ import type { CSSProperties } from "react";
 export const s = {
   card: (status: "pending" | "accepted" | "rejected"): CSSProperties => ({
     borderRadius: 8,
+    // Per-side longhand: `borderColor` is a shorthand for the four per-side
+    // colors, so pairing it with `borderLeftColor` trips React's
+    // "shorthand + non-shorthand on the same rerender" warning when `status` flips.
     borderStyle: "solid",
-    borderColor: status === "accepted" ? "var(--ok)" : "var(--border)",
+    borderTopColor: status === "accepted" ? "var(--ok)" : "var(--border)",
+    borderRightColor: status === "accepted" ? "var(--ok)" : "var(--border)",
+    borderBottomColor: status === "accepted" ? "var(--ok)" : "var(--border)",
     borderWidth: 1,
     borderLeftWidth: 3,
     borderLeftColor:
