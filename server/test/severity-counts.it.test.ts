@@ -4,7 +4,12 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import {
+  MockLLMProvider,
+  MockEmbedder,
+  MockGitClient,
+  MockSecretsProvider,
+} from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import type { Review } from '@devdigest/shared';
 
@@ -192,6 +197,10 @@ d('severity findings counters (Testcontainers pg)', () => {
       config: config(),
       db: pg.handle.db,
       overrides: {
+        // No secrets in tests — see the same note in reviews.it.test.ts: the
+        // L03 intent step would otherwise reach for real GITHUB_TOKEN /
+        // OPENROUTER_API_KEY and make paid network calls before each review.
+        secrets: new MockSecretsProvider(),
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: { openai: new MockLLMProvider('openai', { structured }) },

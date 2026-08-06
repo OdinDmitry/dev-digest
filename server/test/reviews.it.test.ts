@@ -4,7 +4,12 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import {
+  MockLLMProvider,
+  MockEmbedder,
+  MockGitClient,
+  MockSecretsProvider,
+} from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -115,6 +120,14 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       config: config(),
       db: pg.handle.db,
       overrides: {
+        // No secrets in tests. The L03 intent step runs before every review and
+        // reaches for GITHUB_TOKEN (linked-issue lookup) and OPENROUTER_API_KEY
+        // (`review_intent` defaults to openrouter, which the `llm` override
+        // below does NOT cover). Without this, a dev with real keys in
+        // ~/.devdigest/secrets.json makes real, paid, multi-second network
+        // calls here — which is what made these runs flaky. Injected `llm`
+        // providers skip the key lookup, so the mock review still works.
+        secrets: new MockSecretsProvider(),
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: {
