@@ -8,8 +8,9 @@ import {
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
   TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
-import { SEED_SKILLS } from './seed-skills.js';
+import { SEED_SKILLS, API_CONTRACT_SKILLS, type SeedSkill } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -22,9 +23,10 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
  * with a few findings, and the built-in agents (General + Security +
- * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
- * provider+model. L02 also seeds the three test-quality skills and links them to
- * the Test Quality Reviewer in order.
+ * Performance + Test Quality + API Contract), all on the default
+ * openrouter/deepseek-v4-flash provider+model. L02 also seeds two skill sets —
+ * the three test-quality skills linked to the Test Quality Reviewer, and the
+ * four API-contract skills linked to the API Contract Reviewer — each in order.
  *
  * Course lessons populate the remaining tables (conventions, memory, eval, …)
  * once their features are built — those start empty here.
@@ -254,6 +256,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Catches breaking API changes — removed/renamed fields, response-shape drift, unversioned breaks, silent removals.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -263,52 +276,62 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
-  // ---- L02: skills + their links to the Test Quality Reviewer ----
+  // ---- L02: skill sets + their links to a specific built-in agent ----
   // Idempotent on (workspaceId, name), like the agents above. Unlike the agents
   // we DO write the v1 `skill_versions` row here: the seed bypasses the
   // repository, and without it a seeded skill would have no version history and
   // the first body edit would jump from "no snapshot" to v2.
-  const skillIds: string[] = [];
-  for (const s of SEED_SKILLS) {
-    let [skill] = await db
+  //
+  // Two worked examples of the same lesson (agent prompt holds role/output
+  // conventions only, skills hold the concrete rules): the three test-quality
+  // skills → Test Quality Reviewer, and the four API-contract skills →
+  // API Contract Reviewer.
+  const seedSkillSets: Array<{ agentName: string; skills: readonly SeedSkill[] }> = [
+    { agentName: 'Test Quality Reviewer', skills: SEED_SKILLS },
+    { agentName: 'API Contract Reviewer', skills: API_CONTRACT_SKILLS },
+  ];
+
+  for (const { agentName, skills } of seedSkillSets) {
+    const skillIds: string[] = [];
+    for (const s of skills) {
+      let [skill] = await db
+        .select()
+        .from(t.skills)
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+      if (!skill) {
+        [skill] = await db
+          .insert(t.skills)
+          .values({
+            workspaceId,
+            name: s.name,
+            description: s.description,
+            type: s.type,
+            source: 'manual',
+            body: s.body,
+            enabled: true,
+            version: 1,
+          })
+          .returning();
+        await db
+          .insert(t.skillVersions)
+          .values({ skillId: skill!.id, version: 1, body: s.body })
+          .onConflictDoNothing();
+      }
+      skillIds.push(skill!.id);
+    }
+
+    const [agent] = await db
       .select()
-      .from(t.skills)
-      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
-    if (!skill) {
-      [skill] = await db
-        .insert(t.skills)
-        .values({
-          workspaceId,
-          name: s.name,
-          description: s.description,
-          type: s.type,
-          source: 'manual',
-          body: s.body,
-          enabled: true,
-          version: 1,
-        })
-        .returning();
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (agent && skillIds.length > 0) {
+      // Order is what the Skills tab drags and what decides block order in the
+      // assembled prompt — seed it explicitly rather than relying on insert order.
       await db
-        .insert(t.skillVersions)
-        .values({ skillId: skill!.id, version: 1, body: s.body })
+        .insert(t.agentSkills)
+        .values(skillIds.map((skillId, order) => ({ agentId: agent.id, skillId, order })))
         .onConflictDoNothing();
     }
-    skillIds.push(skill!.id);
-  }
-
-  const [testQualityAgent] = await db
-    .select()
-    .from(t.agents)
-    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
-  if (testQualityAgent && skillIds.length > 0) {
-    // Order is what the Skills tab drags and what decides block order in the
-    // assembled prompt — seed it explicitly rather than relying on insert order.
-    await db
-      .insert(t.agentSkills)
-      .values(
-        skillIds.map((skillId, order) => ({ agentId: testQualityAgent.id, skillId, order })),
-      )
-      .onConflictDoNothing();
   }
 
   return { workspaceId, userId };
