@@ -10,7 +10,7 @@
  *
  * Env:
  *   E2E_BASE_URL       web app origin (default http://localhost:3000)
- *   AGENT_BROWSER_BIN  binary name/path (default "agent-browser")
+ *   AGENT_BROWSER_BIN  binary name/path (overrides the lookup in `resolveBin`)
  *   E2E_STEP_TIMEOUT   per-command timeout in ms (default 60000)
  *
  * Specs target read-only seeded data, so nothing here triggers an LLM call or
@@ -18,9 +18,9 @@
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readdirSync, readFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import {
   resolveArgs,
   stdoutContains,
@@ -37,8 +37,47 @@ const SPECS_DIR = join(HERE, "specs");
 const RESULTS_DIR = join(HERE, "test-results");
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const BIN = process.env.AGENT_BROWSER_BIN ?? "agent-browser";
 const STEP_TIMEOUT = Number(process.env.E2E_STEP_TIMEOUT ?? 60_000);
+
+/**
+ * Locate the agent-browser executable.
+ *
+ * On Windows a global npm install puts three shims on PATH — `agent-browser`
+ * (a POSIX shell script, for Git Bash), `.cmd` and `.ps1` — but no bare `.exe`.
+ * `execFile` can run none of them: the extensionless file is not a PE image
+ * (ENOENT), and Node refuses to exec `.cmd`/`.bat` at all without
+ * `shell: true` (EINVAL — the CVE-2024-27980 mitigation). Turning `shell: true`
+ * on would fix the spawn but concatenates argv unescaped (DEP0190), which
+ * mangles any flow step whose text contains a space or quote — so instead we
+ * resolve the real `.exe` the shim points at and exec that directly.
+ *
+ * POSIX is unaffected and keeps using the plain name off PATH.
+ */
+function resolveBin(): string {
+  const explicit = process.env.AGENT_BROWSER_BIN;
+  if (explicit) return explicit;
+  if (process.platform !== "win32") return "agent-browser";
+
+  for (const dir of (process.env.PATH ?? "").split(delimiter).filter(Boolean)) {
+    // A real executable on PATH always wins — exec it as-is.
+    const exe = join(dir, "agent-browser.exe");
+    if (existsSync(exe)) return exe;
+
+    // npm's generated shim is `"%~dp0<relative path to the real exe>" %*`.
+    const cmd = join(dir, "agent-browser.cmd");
+    if (!existsSync(cmd)) continue;
+    const target = readFileSync(cmd, "utf8").match(/"%~dp0([^"]+\.exe)"/i)?.[1];
+    if (target) {
+      const full = join(dir, target);
+      if (existsSync(full)) return full;
+    }
+  }
+  // Nothing resolvable: fall through to the plain name so the failure is the
+  // usual "is agent-browser installed?" ENOENT rather than something obscure.
+  return "agent-browser";
+}
+
+const BIN = resolveBin();
 
 /** Run one agent-browser command; resolve with its stdout, reject on non-zero exit. */
 async function ab(args: string[]): Promise<string> {
