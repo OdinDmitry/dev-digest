@@ -10,6 +10,8 @@ do without re-investigating.
 
 ## What Works
 
+- _2026-08-07_ — **`run.ts` now resolves the native `agent-browser` executable itself, so the Windows `AGENT_BROWSER_BIN` workaround below (2026-08-05) is no longer needed** — `resolveBin()` returns `AGENT_BROWSER_BIN` when set, the plain name on POSIX (unchanged), and on win32 walks `PATH` for a real `agent-browser.exe` first, then falls back to reading npm's generated `agent-browser.cmd` shim and extracting the `.exe` path out of its `"%~dp0…" %*` line. `execFile` then spawns that binary directly. Deliberately NOT `shell: true`: that also fixes the spawn, but concatenates argv unescaped (Node `DEP0190`), and flow steps pass arbitrary text (`find text …`, assertion strings) that contains spaces and quotes — so it would have traded a hard failure for silent mis-parsing of specific steps. When nothing resolves, it returns the plain name so the failure stays the familiar "is agent-browser installed?" `ENOENT`. Verified with a full `./scripts/e2e.sh`: 9/9 flows green on Windows, first time the suite has run here.
+
 ## What Doesn't Work
 
 ## Codebase Patterns
