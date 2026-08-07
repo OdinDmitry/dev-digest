@@ -14,6 +14,7 @@ aliases, not published modules):
 | `server/`        | `@devdigest/api`            | Fastify API + Drizzle/Postgres (pgvector)             | 3001 |
 | `client/`        | `@devdigest/web`            | Next.js 15 web app (the studio)                       | 3000 |
 | `reviewer-core/` | `@devdigest/reviewer-core`  | Pure review engine: diff → prompt → LLM → findings    | —    |
+| `mcp/`           | `@devdigest/mcp`            | Local MCP server (stdio) for Claude Code / Desktop    | —    |
 | `e2e/`           | `@devdigest/e2e`            | Deterministic browser e2e (agent-browser)             | —    |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts shared across every package             | —    |
 
@@ -47,6 +48,9 @@ flowchart LR
   SHARED -.->|"one schema, every package"| WEB
   SHARED -.-> API
   SHARED -.-> ENGINE
+
+  MCP["mcp/ · stdio MCP server"] -->|"REST"| API
+  CC["Claude Code / Desktop"] -->|"stdio (JSON-RPC)"| MCP
 ```
 
 The review flow end to end: **add a repo** → server clones it and `repo-intel`
@@ -55,12 +59,16 @@ indexes it (the **Indexed** badge) → **import PRs** from GitHub → open a PR 
 calls the LLM, validates every finding against the diff (the **grounding gate**
 drops hallucinated line references), and persists structured findings with a
 severity and score. All local; the only outbound calls are to GitHub (PR data)
-and the LLM (via OpenRouter).
+and the LLM (via OpenRouter). `mcp/` exposes the same API to Claude Code /
+Desktop over a local stdio MCP server, so a coding agent can list reviewer
+agents, trigger a review, and read its findings and a repository's
+conventions — it is a thin HTTP client of `server/`, nothing more.
 
 Each package has its own README with deeper diagrams:
 [`client`](client/README.md) (UI route map) ·
 [`server`](server/README.md) (API map) ·
 [`reviewer-core`](reviewer-core/README.md) (review pipeline) ·
+[`mcp`](mcp/README.md) (the five tools) ·
 [`e2e`](e2e/README.md).
 
 ## What works on day 1
@@ -82,7 +90,7 @@ These are intentionally **not** in the starter — each lesson adds one back:
 | L01 | Run cost badge · severity filter on findings |
 | L02 | Skills in the product · Conventions extractor |
 | L03 | Intent layer · Smart Diff |
-| L04 | `devdigest-mcp` server · Blast Radius (reads `repo-intel`) |
+| L04 | Blast Radius (reads `repo-intel`) via the `devdigest-mcp` server |
 | L05 | Project Context Folder · Onboarding generator · PR Brief card |
 | L06 | Eval pipeline · Secret/Phantom gates · Plan Verifier · Export to CI |
 | L07 | Multi-agent review · Run Trace / Live Log · Persistent memory · per-agent stats |
@@ -113,6 +121,10 @@ Flags: `--no-seed` · `--no-client` · `--db-only` · `--help`.
 > Add your keys in `server/.env` (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY`,
 > `GITHUB_TOKEN`) or via the Settings UI at runtime.
 
+> To use DevDigest from Claude Code / Desktop over MCP, build the server once
+> (`cd mcp && pnpm install && pnpm build`) — the committed root `.mcp.json`
+> picks it up from there. Not needed for the web app.
+
 ## Manual steps (what the script does)
 
 ```sh
@@ -131,6 +143,7 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 `server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` · `typecheck`
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
+`mcp/`: `dev` · `build` · `start` · `test` · `typecheck` · `inspect`
 
 ## Testing & CI
 
@@ -143,6 +156,7 @@ path filter — full strategy in **[`TESTING.md`](TESTING.md)**.
 | server unit (hermetic) | `server-unit.yml` | no |
 | server integration (real Postgres) | `server-integration.yml` | yes |
 | reviewer-core (engine) | `reviewer-core.yml` | no |
+| mcp (vitest) | `mcp.yml` | no |
 | web e2e (agent-browser, real stack) | `e2e-web.yml` | yes |
 
 Server tests split by filename: `*.it.test.ts` are DB-backed (testcontainers

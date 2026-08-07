@@ -1,6 +1,6 @@
 # DevDigest — agent map
 
-Local-first AI PR review, course starter template. 4 standalone packages, no
+Local-first AI PR review, course starter template. 5 standalone packages, no
 workspace root — each has its own `package.json`/lockfile; cross-package code
 is shared through tsconfig path aliases + vendored copies, not published
 modules. Full picture: [README.md](README.md).
@@ -17,6 +17,7 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
 - [server/CLAUDE.md](server/CLAUDE.md) — Fastify API, DI container, DB, repo-intel indexer
 - [client/CLAUDE.md](client/CLAUDE.md) — Next.js studio (UI)
 - [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md) — pure review engine (diff → LLM → grounded findings)
+- [mcp/CLAUDE.md](mcp/CLAUDE.md) — local stdio MCP server (Claude Code / Desktop → the API)
 - [e2e/CLAUDE.md](e2e/CLAUDE.md) — deterministic browser e2e (agent-browser, no LLM)
 
 ## Non-default conventions
@@ -33,5 +34,7 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
   (mode `0600`), never in git or the database.
 - `docker compose down -v` deletes the `devdigest_pgdata` volume — wipes every
   imported repo/review. Don't run it to "just restart" Postgres.
+- `.mcp.json` points at `mcp/dist/index.js` — run `cd mcp && pnpm install &&
+  pnpm build` once, or Claude Code shows the `devdigest` server as failed.
 
 ## Do-not-touch

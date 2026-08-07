@@ -1,0 +1,31 @@
+# mcp/ — engineering insights
+
+Append-only. Newest entry on top within each section. Never edit or delete
+existing entries. Promote anything that becomes a standing rule into
+[CLAUDE.md](CLAUDE.md) instead of leaving it here.
+
+Entry test: if it'd be obvious to anyone reading the code, don't write it.
+Each entry must be specific enough that a cold agent knows exactly what to
+do without re-investigating.
+
+## What Works
+
+## What Doesn't Work
+
+## Codebase Patterns
+
+## Tool & Library Notes
+
+- _2026-08-06_ — **`zod ^3.24.1` (matching the rest of the repo) resolves fine against `@modelcontextprotocol/sdk@^1.30.0`'s peer range `^3.25 || ^4.0` — no zod v4 forced** — `pnpm install` picked `zod@3.25.76` (the newest 3.x publish satisfying both this package's own `^3.24.1` dependency spec and the SDK's peer range), confirmed via `npm view zod versions` before installing. Open question 2 in `specs/0004-local-mcp-server.md` flagged this as something to verify, not assume — it resolved without a deviation. If a future SDK bump narrows its peer range to `^4.0` only, that *would* be a real deviation to surface, not silently bump past.
+- _2026-08-06_ — **`McpServer.registerTool()`'s `inputSchema`/`outputSchema` are a `ZodRawShape` (plain `Record<string, ZodTypeAny>`), not a `ZodObject`** — `mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.d.ts`'s `registerTool<...>` signature takes `ZodRawShapeCompat`. `ToolDefinition.inputSchema`/`outputSchema` in `tools/types.ts` are typed the same way (`Record<string, z.ZodTypeAny>`), and every tool file passes `{repo: RepoArg, pr: PrArg, ...}` directly — never a `z.object({...})`. When wiring a shared output schema (`ReviewResult` in `tools/schemas.ts`, a `z.object`), pass `ReviewResult.shape` to `outputSchema`, not `ReviewResult` itself.
+- _2026-08-06_ — **`InMemoryTransport` is exported at `@modelcontextprotocol/sdk/inMemory.js` in the installed 1.30.0** (confirmed by reading `dist/esm/inMemory.d.ts` directly before writing `test/server.test.ts`/`test/schema-budget.test.ts`) — the plan's step 16 flagged this as something to verify rather than assume, since a missing export would have meant dropping that test rather than silently working around it. `InMemoryTransport.createLinkedPair()` returns `[clientTransport, serverTransport]`; connect the server and client to their respective sides in parallel (`Promise.all`) or the second `connect()` call hangs waiting for the first's handshake.
+- _2026-08-06_ — **Zod v3.25.x (installed here) has no `z.toJSONSchema()`** (that is a Zod v4 API) and `zod-to-json-schema` — the package the MCP SDK itself depends on for this — is not phantom-resolvable from `mcp/`'s own `node_modules` under pnpm's strict isolation (it is a dependency of the SDK, not of `mcp/`). Rather than adding it as an extra devDependency, `test/schema-budget.test.ts` measures the REAL wire JSON Schema by spinning up an actual `McpServer` + `Client` over `InMemoryTransport` and calling `listTools()` — more faithful than a hand-rolled conversion, and reuses the same harness as `server.test.ts`.
+
+## Recurring Errors & Fixes
+
+- _2026-08-06_ — **A synchronous `throw` inside a non-`async` method that only returns another function's Promise does NOT become a Promise rejection — it throws immediately, breaking `await expect(fn()).rejects.toThrow()`** — `HttpDevDigestApi`'s per-endpoint methods (`listPulls`, `startReview`, etc.) originally called `assertUuid(id, label)` (a synchronous defense-in-depth check, §15) then `return this.request(...)` without the method itself being `async`. `assertUuid`'s throw therefore escaped synchronously instead of rejecting the returned Promise, which `test/http.test.ts`'s "rejects a non-uuid id" test caught immediately (the assertion helper needs a Promise to await, not a synchronous throw). Fixed by marking every `HttpDevDigestApi` method `async` — any synchronous throw inside an `async` function body is automatically wrapped into a rejected Promise. Before adding a synchronous validation check ahead of a `return somePromise` in a method that's meant to behave like every other async call on the same interface, either mark the method `async` or the check has different failure semantics than its siblings.
+
+## Session Notes
+<!-- written by a separate end-of-session wrap-up flow, not this skill -->
+
+## Open Questions
