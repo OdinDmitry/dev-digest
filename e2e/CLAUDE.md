@@ -27,6 +27,11 @@ only safe with a freshly-seeded DB, see README precondition)
 ## Non-default conventions
 - Locators are deterministic only (`--url`, `--text`, `find role|text|label`)
   — never the AI `chat` command, so runs stay stable and key-free.
+- **No agent-browser click scrolls its target into view** — a click on an
+  element outside the viewport silently hits whatever is there instead and
+  still exits 0. A click target inside a scrollable list must be brought into
+  view first (e.g. filter the list with its own search box), never assumed
+  reachable.
 - Flows target **read-only seeded data** (`acme/payments-api`, PR #482) so no
   flow triggers a model call.
 

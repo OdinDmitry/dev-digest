@@ -1,11 +1,12 @@
 {
   "name": "Skills library lists the seeded skills",
-  "description": "Loads /skills and confirms a seeded skill (test-coverage-rubric) renders as a card, then opens it and checks the preview pane shows the body. Exercises the skills route, its API fetch, and ?id= selection.",
+  "description": "Loads /skills and confirms a seeded skill (test-coverage-rubric) renders as a card, then opens it and checks the preview pane shows the body. Exercises the skills route, its API fetch, the rail's search filter, and ?id= selection.",
   "steps": [
     { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
     { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
     { "cmd": ["wait", "--text", "test-coverage-rubric"], "label": "seeded skill card is visible" },
+    { "cmd": ["find", "placeholder", "Search skills…", "fill", "test-coverage-rubric"], "label": "filter the rail down to that one skill (its card sits below the fold, and clicks do not scroll)" },
     { "cmd": ["find", "role", "button", "click", "--name", "test-coverage-rubric"], "label": "open the skill detail pane" },
     { "cmd": ["wait", "--url", "id="], "label": "selection is reflected in the URL" },
     { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to the Preview tab" },
