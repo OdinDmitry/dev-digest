@@ -1,6 +1,7 @@
 import type { DevDigestApi } from '../../src/devdigest/api.js';
 import type {
   WireAgent,
+  WireBlast,
   WireConvention,
   WirePr,
   WireRepo,
@@ -24,6 +25,7 @@ export class FakeDevDigestApi implements DevDigestApi {
   runs: Record<string, WireRun[]> = {};
   reviews: Record<string, WireReview[]> = {};
   conventions: Record<string, WireConvention[]> = {};
+  blast: Record<string, WireBlast> = {};
 
   calls: { method: keyof DevDigestApi; args: unknown[] }[] = [];
   failures: Partial<Record<keyof DevDigestApi, () => Error>> = {};
@@ -93,6 +95,11 @@ export class FakeDevDigestApi implements DevDigestApi {
   async listConventions(repoId: string): Promise<WireConvention[]> {
     this.record('listConventions', [repoId]);
     return this.conventions[repoId] ?? [];
+  }
+
+  async getBlastRadius(prId: string): Promise<WireBlast> {
+    this.record('getBlastRadius', [prId]);
+    return this.blast[prId] ?? makeBlast();
   }
 }
 
@@ -165,6 +172,31 @@ export function makeConvention(overrides: Partial<WireConvention> = {}): WireCon
     evidence_path: 'src/routes/pulls.ts',
     evidence_start_line: 10,
     evidence_end_line: 20,
+    ...overrides,
+  };
+}
+
+export function makeBlast(overrides: Partial<WireBlast> = {}): WireBlast {
+  return {
+    state: 'ok',
+    reason: null,
+    changed_files: ['src/payments/retry.ts'],
+    changed_symbols: [
+      { file: 'src/payments/retry.ts', name: 'retryPayment', kind: 'function', line: 18 },
+    ],
+    callers: [
+      {
+        file: 'src/payments/handler.ts',
+        symbol: 'handlePayment',
+        via_symbol: 'retryPayment',
+        line: 42,
+        rank: 0.87,
+      },
+    ],
+    callers_total: 1,
+    callers_truncated: false,
+    impacted_endpoints: [{ endpoint: 'POST /payments', file: 'src/routes/payments.ts', hops: 1 }],
+    endpoints_truncated: false,
     ...overrides,
   };
 }

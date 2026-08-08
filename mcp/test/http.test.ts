@@ -97,6 +97,35 @@ const RUN_FIXTURE = {
   suggestion_count: 0,
 };
 
+/** `PrBlastRadius` — server/src/vendor/shared/contracts/blast.ts:44 —
+ * `GET /pulls/:id/blast`. Includes `pr_id`/`repo_id` (real wire fields,
+ * dropped entirely by `WireBlast` — proof extra/unused keys don't break
+ * parsing, mcp/CLAUDE.md's strip-not-strict convention). */
+const BLAST_FIXTURE = {
+  pr_id: PR_UUID,
+  repo_id: REPO_UUID,
+  state: 'ok',
+  reason: null,
+  changed_files: ['src/payments/retry.ts'],
+  changed_symbols: [
+    { file: 'src/payments/retry.ts', name: 'retryPayment', kind: 'function', line: 18 },
+  ],
+  callers: [
+    {
+      file: 'src/payments/handler.ts',
+      symbol: 'handlePayment',
+      via_symbol: 'retryPayment',
+      line: 42,
+      rank: 0.87,
+      percentile: 76,
+    },
+  ],
+  callers_total: 1,
+  callers_truncated: false,
+  impacted_endpoints: [{ endpoint: 'POST /payments', file: 'src/routes/payments.ts', hops: 1 }],
+  endpoints_truncated: false,
+};
+
 /** `ReviewDto` — server/src/modules/reviews/helpers.ts:18 —
  * `GET /pulls/:id/reviews`. The live capture had zero findings; the finding
  * literal below is reconstructed from `findingRowToDto`
@@ -185,9 +214,25 @@ describe('HttpDevDigestApi', () => {
     expect(started.runs[0]?.run_id).toBe(RUN_FIXTURE.run_id);
   });
 
+  it('GET /pulls/:id/blast — correct method, path (uuid-encoded)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(BLAST_FIXTURE));
+    const api = makeApi();
+    await api.getBlastRadius(PR_UUID);
+
+    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(String(url)).toBe(`${BASE_URL}/pulls/${encodeURIComponent(PR_UUID)}/blast`);
+    expect(init.method).toBe('GET');
+  });
+
   it('rejects a non-uuid id before ever building a URL (defense in depth, §15)', async () => {
     const api = makeApi();
     await expect(api.listPulls('not-a-uuid')).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-uuid prId for getBlastRadius before ever building a URL', async () => {
+    const api = makeApi();
+    await expect(api.getBlastRadius('not-a-uuid')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -265,6 +310,19 @@ describe('HttpDevDigestApi', () => {
       fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 'x' /* full_name missing */ }]));
       const api = makeApi();
       await expect(api.listRepos()).rejects.toBeInstanceOf(ApiError);
+    });
+
+    it('parses a real GET /pulls/:id/blast payload, dropping pr_id/repo_id entirely', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(BLAST_FIXTURE));
+      const api = makeApi();
+      const blast = await api.getBlastRadius(PR_UUID);
+
+      expect(blast.state).toBe('ok');
+      expect(blast.changed_symbols[0]).toMatchObject({ file: 'src/payments/retry.ts', name: 'retryPayment' });
+      expect(blast.callers[0]).toMatchObject({ symbol: 'handlePayment', via_symbol: 'retryPayment', line: 42 });
+      expect(blast.impacted_endpoints[0]).toMatchObject({ endpoint: 'POST /payments', hops: 1 });
+      expect(blast).not.toHaveProperty('pr_id');
+      expect(blast).not.toHaveProperty('repo_id');
     });
   });
 });

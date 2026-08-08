@@ -33,9 +33,19 @@ export interface SmartDiffViewerProps {
   findings: FindingRecord[];
   commenting?: DiffCommentApi;
   onOpenFinding: (findingId: string) => void;
+  targetFilePath?: string | null;
+  targetFileNonce?: number;
 }
 
-export function SmartDiffViewer({ files, smartDiff, findings, commenting, onOpenFinding }: SmartDiffViewerProps) {
+export function SmartDiffViewer({
+  files,
+  smartDiff,
+  findings,
+  commenting,
+  onOpenFinding,
+  targetFilePath,
+  targetFileNonce,
+}: SmartDiffViewerProps) {
   const groups = React.useMemo(() => resolveGroups(smartDiff, files), [smartDiff, files]);
   const refsByPath = React.useMemo(() => findingRefsByPath(smartDiff), [smartDiff]);
   const findingById = React.useMemo(() => new Map(findings.map((f) => [f.id, f])), [findings]);
@@ -71,6 +81,8 @@ export function SmartDiffViewer({ files, smartDiff, findings, commenting, onOpen
           defaultOpen={DEFAULT_GROUP_OPEN[group.role]}
           commenting={commenting}
           renderLineMarker={renderLineMarker}
+          targetFilePath={targetFilePath}
+          targetFileNonce={targetFileNonce}
         />
       ))}
     </div>
@@ -82,14 +94,24 @@ function SmartDiffGroupSection({
   defaultOpen,
   commenting,
   renderLineMarker,
+  targetFilePath,
+  targetFileNonce,
 }: {
   group: ResolvedGroup;
   defaultOpen: boolean;
   commenting?: DiffCommentApi;
   renderLineMarker: (args: { path: string; line: number }) => React.ReactNode;
+  targetFilePath?: string | null;
+  targetFileNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const [open, setOpen] = React.useState(defaultOpen);
+
+  const containsTarget =
+    !!targetFilePath && group.entries.some((e) => e.prFile.path === targetFilePath);
+  React.useEffect(() => {
+    if (containsTarget) setOpen(true);
+  }, [containsTarget, targetFileNonce]);
 
   return (
     <div style={s.group}>
@@ -124,6 +146,8 @@ function SmartDiffGroupSection({
               entry={entry}
               commenting={commenting}
               renderLineMarker={renderLineMarker}
+              targetFilePath={targetFilePath}
+              targetFileNonce={targetFileNonce}
             />
           ))}
         </div>
@@ -136,10 +160,14 @@ function SmartDiffFileEntry({
   entry,
   commenting,
   renderLineMarker,
+  targetFilePath,
+  targetFileNonce,
 }: {
   entry: ResolvedGroup["entries"][number];
   commenting?: DiffCommentApi;
   renderLineMarker: (args: { path: string; line: number }) => React.ReactNode;
+  targetFilePath?: string | null;
+  targetFileNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const large = isLargeFile(entry.smartDiffFile);
@@ -163,7 +191,13 @@ function SmartDiffFileEntry({
         </div>
       )}
       {summary && <div style={s.pseudocodeSummary}>{summary}</div>}
-      <FileCard file={entry.prFile} commenting={commenting} renderLineMarker={renderLineMarker} />
+      <FileCard
+        file={entry.prFile}
+        commenting={commenting}
+        renderLineMarker={renderLineMarker}
+        targetFilePath={targetFilePath}
+        targetFileNonce={targetFileNonce}
+      />
     </div>
   );
 }

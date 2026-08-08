@@ -7,7 +7,7 @@
       "env": {
         "DEVDIGEST_API_URL": "${DEVDIGEST_API_URL:-http://localhost:3001}"
       },
-      "timeout": 300000
+      "timeout": 600000
     }
   }
 }

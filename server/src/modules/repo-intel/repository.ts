@@ -128,6 +128,7 @@ export interface ResolvedCallerRow {
   toSymbol: string;
   line: number;
   rank: number;
+  percentile: number;
 }
 
 export class RepoIntelRepository {
@@ -436,6 +437,22 @@ export class RepoIntelRepository {
       .where(eq(t.fileEdges.repoId, repoId));
   }
 
+  /**
+   * Reverse edges: who imports any of `toFiles`. Served by the existing
+   * `file_edges_repo_to_idx` index on `(repo_id, to_file)` — this is an
+   * indexed `IN` lookup, not a full-table scan like `getEdges`. Used by
+   * blast's 2-hop reverse-import walk (repo-intel/service.ts) to answer
+   * "who depends on this file?" in O(degree) instead of pulling the whole
+   * graph for a handful of files.
+   */
+  async getImporters(repoId: string, toFiles: string[]): Promise<IndexerEdgeRow[]> {
+    if (toFiles.length === 0) return [];
+    return this.db
+      .select({ fromFile: t.fileEdges.fromFile, toFile: t.fileEdges.toFile })
+      .from(t.fileEdges)
+      .where(and(eq(t.fileEdges.repoId, repoId), inArray(t.fileEdges.toFile, toFiles)));
+  }
+
   /** `{path, percentile}` for the given paths (smart-diff / run-executor). */
   async getFileRankFor(repoId: string, paths: string[]): Promise<FileRankRow[]> {
     if (paths.length === 0) return [];
@@ -512,6 +529,7 @@ export class RepoIntelRepository {
         toSymbol: t.references.toSymbol,
         line: t.references.line,
         rank: t.fileRank.rank,
+        percentile: t.fileRank.percentile,
       })
       .from(t.references)
       .innerJoin(

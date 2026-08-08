@@ -14,6 +14,7 @@ import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
 import { DiffTab } from "./_components/DiffTab";
+import { BlastTab } from "./_components/BlastTab";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -78,6 +79,30 @@ export default function PRDetailPage() {
     setFindingTarget((p) => ({ id: findingId, n: (p?.n ?? 0) + 1 }));
     setTab("findings");
   };
+
+  // File-level navigation target (Blast tab "jump to file" → Files changed
+  // tab, mirrors findingTarget above). Lives here for the same reason: the
+  // Blast tab (trigger) and the Files changed tab (destination) are
+  // different, individually-mounted tabs, and page.tsx is the ancestor that
+  // outlives both across the ?tab= switch (client/insights.md 2026-08-05).
+  const [fileTarget, setFileTarget] = React.useState<{ path: string; n: number } | null>(null);
+  const handleJumpToFile = (path: string) => {
+    setFileTarget((p) => ({ path, n: (p?.n ?? 0) + 1 })); // nonce: clicking the same target twice must still re-fire the effect
+    setTab("diff");
+  };
+  // `pr` may be undefined here — the loading/error guards run later below.
+  const diffFilePaths = React.useMemo(
+    () => new Set((pr?.files ?? []).map((f) => f.path)),
+    [pr],
+  );
+
+  // A ?tab= change swaps this page's children inside AppFrame's single
+  // persistent scrollable <main> (vendor/ui/shell/AppFrame.tsx) — nothing
+  // remounts, so the previous tab's scroll offset would otherwise carry into
+  // the next one (e.g. Files changed, scrolled to the bottom, → Blast).
+  React.useEffect(() => {
+    document.querySelector("main")?.scrollTo({ top: 0 });
+  }, [tab]);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -184,6 +209,18 @@ export default function PRDetailPage() {
             canComment={pr.status === "open"}
             findings={allFindings}
             onOpenFinding={handleOpenFinding}
+            targetFilePath={fileTarget?.path ?? null}
+            targetFileNonce={fileTarget?.n ?? 0}
+          />
+        )}
+
+        {tab === "blast" && (
+          <BlastTab
+            prId={prId}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            diffFilePaths={diffFilePaths}
+            onJumpToFile={handleJumpToFile}
           />
         )}
       </div>

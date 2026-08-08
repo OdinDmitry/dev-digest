@@ -50,6 +50,12 @@ export class ReviewRepository {
     return pullRepo.prFileSummaries(this.db, prId);
   }
 
+  /** Workspace-scoped `repo_id` lookup — existence check + repo id in one
+   *  read, without exposing `PullRow`. `null` = not found in this workspace. */
+  pullRepoId(workspaceId: string, prId: string): Promise<string | null> {
+    return pullRepo.pullRepoId(this.db, workspaceId, prId);
+  }
+
   // ---- reviews + findings -------------------------------------------------
 
   insertReview(values: {

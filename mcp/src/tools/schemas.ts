@@ -64,7 +64,7 @@ export const DepthArg = z
   .int()
   .min(1)
   .max(3)
-  .describe('Import-graph hops to follow (default 1).')
+  .describe('Accepted for compatibility; traversal is fixed at 2 hops.')
   .optional();
 
 // ---- The shared compact projection (§10) — reused by BOTH run_agent_on_pr
@@ -133,3 +133,44 @@ export const ConventionsListResult = z.object({
   next_step: z.string().nullable(),
 });
 export type ConventionsListResult = z.infer<typeof ConventionsListResult>;
+
+// ---- get_blast_radius' output (`specs/0005-blast-radius.md` §10) ----------
+// A separate, MCP-sized token budget from the server's UI-oriented 20/symbol
+// cap (`repo-intel/constants.ts`'s `MAX_CALLERS_PER_SYMBOL`) — this is a
+// context-window budget, not a UI-page budget.
+export const MAX_BLAST_SYMBOLS = 25;
+export const MAX_BLAST_CALLERS_PER_SYMBOL = 5;
+
+export const BlastCallerOut = z.object({
+  location: z.string(), // "src/payments/handler.ts:42"
+  symbol: z.string(), // the enclosing symbol at the call site
+});
+export type BlastCallerOut = z.infer<typeof BlastCallerOut>;
+
+export const BlastSymbolOut = z.object({
+  symbol: z.string(),
+  location: z.string(), // "src/payments/retry.ts:42", or file-only when the indexer recorded no line
+  callers: z.array(BlastCallerOut),
+});
+export type BlastSymbolOut = z.infer<typeof BlastSymbolOut>;
+
+export const BlastEndpointOut = z.object({
+  endpoint: z.string(), // "METHOD /path"
+  location: z.string(), // the declaring file — no line: PrBlastEndpoint carries none
+  hops: z.number().int(), // 0 = changed file itself, 1-2 = importer distance
+});
+export type BlastEndpointOut = z.infer<typeof BlastEndpointOut>;
+
+export const BlastRadiusResult = z.object({
+  repo: z.string(),
+  pr: z.number().int(),
+  state: z.enum(['ok', 'partial']), // 'degraded' is always a Tool Execution Error, never a result
+  reason: z.string().nullable(),
+  changed_files_total: z.number().int(),
+  symbols: z.array(BlastSymbolOut),
+  endpoints: z.array(BlastEndpointOut),
+  callers_total: z.number().int(), // pre-cap, as reported by the server
+  truncated: z.boolean(),
+  next_step: z.string().nullable(),
+});
+export type BlastRadiusResult = z.infer<typeof BlastRadiusResult>;

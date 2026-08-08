@@ -32,6 +32,7 @@ import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import type {
   BlastCallerRow,
   BlastChangedSymbol,
+  BlastEndpointRow,
   BlastResult,
   FileRankRow,
   IndexResult,
@@ -47,6 +48,8 @@ import {
   DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEX_JOB_KIND,
   INDEXER_VERSION,
+  MAX_BLAST_CALLERS_TOTAL,
+  MAX_BLAST_GRAPH_FILES,
   MAX_CALLERS_PER_SYMBOL,
   REFRESH_JOB_KIND,
   RESYNC_JOB_KIND,
@@ -254,7 +257,7 @@ export class RepoIntelService implements RepoIntel {
       const key = `${s.name}:${s.path}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      changedSymbols.push({ file: s.path, name: s.name, kind: s.kind });
+      changedSymbols.push({ file: s.path, name: s.name, kind: s.kind, line: s.line });
     }
 
     const callerRows: BlastCallerRow[] = [];
@@ -281,6 +284,7 @@ export class RepoIntelService implements RepoIntel {
           viaSymbol: sym.name,
           line: r.line,
           rank: 0, // ripgrep/degraded path has no persistent rank
+          percentile: 0, // ripgrep/degraded path has no persistent percentile
         });
         callerFiles.add(r.fromPath);
       }
@@ -330,12 +334,22 @@ export class RepoIntelService implements RepoIntel {
       const key = `${s.name}:${s.path}`;
       if (!seenSym.has(key)) {
         seenSym.add(key);
-        changedSymbols.push({ file: s.path, name: s.name, kind: s.kind });
+        changedSymbols.push({ file: s.path, name: s.name, kind: s.kind, line: s.line });
       }
       nameSet.add(s.name);
     }
+    changedSymbols.sort(compareChangedSymbols);
     if (nameSet.size === 0) {
-      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
+      return {
+        changedSymbols,
+        callers: [],
+        impactedEndpoints: [],
+        impactedEndpointRows: [],
+        callersTotal: 0,
+        callersTruncated: false,
+        endpointsTruncated: false,
+        degraded: false,
+      };
     }
 
     // Resolved cross-file callers.
@@ -367,27 +381,110 @@ export class RepoIntelService implements RepoIntel {
         viaSymbol: c.toSymbol,
         line: c.line,
         rank: c.rank,
+        percentile: c.percentile,
       });
     }
-    callers.sort((a, b) => b.rank - a.rank);
 
-    // Precomputed facts per caller file (endpoints + crons), so consumers can
-    // attribute them to the changed symbol whose callers live in that file.
-    const facts = await this.repo.getFileFacts(repoId, callerFiles);
-    const endpoints = new Set<string>();
+    const callersTotal = callers.length;
+    const { callers: cappedCallers, truncated: callersTruncated } = capAndOrderCallers(callers);
+
+    // 2-hop reverse-import closure from the changed files (§4) — hop 0 is the
+    // changed files themselves, so a changed file that IS a route file is
+    // attributed at hops: 0 rather than missed entirely.
+    const { hopByFile, truncated: endpointsTruncated } = await this.reverseImportClosure(
+      repoId,
+      changedFiles,
+    );
+    const factFiles = [...hopByFile.keys()];
+    const facts = await this.repo.getFileFacts(repoId, factFiles);
     const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
+    const endpointBest = new Map<string, { file: string; hops: number }>();
     for (const f of facts) {
       factsByFile[f.filePath] = { endpoints: f.endpoints, crons: f.crons };
-      for (const e of f.endpoints) endpoints.add(e);
+      const hop = hopByFile.get(f.filePath) ?? 0;
+      for (const e of f.endpoints) {
+        const cur = endpointBest.get(e);
+        if (!cur || hop < cur.hops || (hop === cur.hops && f.filePath < cur.file)) {
+          endpointBest.set(e, { file: f.filePath, hops: hop });
+        }
+      }
     }
+    const impactedEndpointRows: BlastEndpointRow[] = [...endpointBest.entries()]
+      .map(([endpoint, v]) => ({ endpoint, file: v.file, hops: v.hops }))
+      .sort(compareEndpointRows);
+    const impactedEndpoints = [...endpointBest.keys()].sort();
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
-      impactedEndpoints: [...endpoints],
+      callers: cappedCallers,
+      callersTotal,
+      callersTruncated,
+      impactedEndpoints,
+      impactedEndpointRows,
+      endpointsTruncated,
       factsByFile,
       degraded: false,
     };
+  }
+
+  /**
+   * 2-hop reverse-import closure from `seeds` (the changed files), for blast's
+   * endpoint attribution (§4). Exactly `BFS_DEPTH` rounds, each ONE
+   * `getImporters` call over the previous round's frontier — never a
+   * per-file loop, so the cost is O(hops) queries regardless of fan-out.
+   *
+   * A file keeps its LOWEST hop and is never re-expanded once seen (seeds are
+   * hop 0) — this is what terminates the walk on a cyclic import graph.
+   *
+   * `MAX_BLAST_GRAPH_FILES` caps the TOTAL number of files visited across
+   * both hops (seeds included). On overflow, a round's overflowing
+   * candidates are ranked by `file_rank` (percentile, which is monotonic
+   * with `rank`) DESC, file path ASC as the tiebreaker, and only the
+   * highest-ranked candidates that fit the remaining budget are kept —
+   * lower-ranked candidates are dropped for THIS round (and so never expand
+   * further in the next round either), and `truncated` is set.
+   */
+  private async reverseImportClosure(
+    repoId: string,
+    seeds: string[],
+  ): Promise<{ hopByFile: Map<string, number>; truncated: boolean }> {
+    const hopByFile = new Map<string, number>();
+    for (const f of seeds) hopByFile.set(f, 0);
+    let truncated = false;
+    let frontier = [...seeds];
+
+    for (let hop = 1; hop <= BFS_DEPTH; hop += 1) {
+      const edges = await this.repo.getImporters(repoId, frontier);
+      const candidateSet = new Set<string>();
+      for (const e of edges) {
+        if (!hopByFile.has(e.fromFile)) candidateSet.add(e.fromFile);
+      }
+      let candidates = [...candidateSet];
+
+      const budget = MAX_BLAST_GRAPH_FILES - hopByFile.size;
+      if (candidates.length > budget) {
+        truncated = true;
+        if (budget <= 0) {
+          candidates = [];
+        } else {
+          const ranks = await this.repo.getFileRankFor(repoId, candidates);
+          const rankOf = new Map(ranks.map((r) => [r.path, r.percentile]));
+          candidates = candidates
+            .sort((a, b) => {
+              const ra = rankOf.get(a) ?? -Infinity;
+              const rb = rankOf.get(b) ?? -Infinity;
+              if (rb !== ra) return rb - ra;
+              return a < b ? -1 : a > b ? 1 : 0;
+            })
+            .slice(0, budget);
+        }
+      }
+
+      for (const f of candidates) hopByFile.set(f, hop);
+      frontier = candidates;
+    }
+
+    return { hopByFile, truncated };
   }
 
   /**
@@ -738,6 +835,73 @@ function enclosingFromRows(rows: FullSymbolRow[], line: number): string | null {
     .filter((s) => !s.name.includes('.') && (s.line ?? 0) <= line)
     .sort((a, b) => (b.line ?? 0) - (a.line ?? 0))[0];
   return hit?.name ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Blast — total orders + caller capping (§5). Every sort below has a full
+// tiebreaker so row order is deterministic regardless of DB/Set iteration
+// order (server/insights.md, 2026-08-04 — the exact bug class this guards
+// against: `ORDER BY` / flattened-Set order with no tiebreaker is unstable).
+// ---------------------------------------------------------------------------
+
+/** Total order for BlastCallerRow: rank DESC, file ASC, line ASC, viaSymbol ASC. */
+function compareCallers(a: BlastCallerRow, b: BlastCallerRow): number {
+  if (b.rank !== a.rank) return b.rank - a.rank;
+  if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+  if (a.line !== b.line) return a.line - b.line;
+  if (a.viaSymbol !== b.viaSymbol) return a.viaSymbol < b.viaSymbol ? -1 : 1;
+  return 0;
+}
+
+/** Total order for BlastChangedSymbol: file ASC, name ASC, kind ASC. */
+function compareChangedSymbols(a: BlastChangedSymbol, b: BlastChangedSymbol): number {
+  if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+  if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+  if (a.kind !== b.kind) return a.kind < b.kind ? -1 : 1;
+  return 0;
+}
+
+/** Total order for BlastEndpointRow: hops ASC, endpoint ASC, file ASC. */
+function compareEndpointRows(a: BlastEndpointRow, b: BlastEndpointRow): number {
+  if (a.hops !== b.hops) return a.hops - b.hops;
+  if (a.endpoint !== b.endpoint) return a.endpoint < b.endpoint ? -1 : 1;
+  if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+  return 0;
+}
+
+/**
+ * §5 caller capping — fixes the pre-existing bug (server/insights.md-class,
+ * plan §1.1) where the per-symbol cap was applied to the whole flattened
+ * list instead of per `viaSymbol` group. Group by `viaSymbol`, sort each
+ * group with the total order, slice each to `MAX_CALLERS_PER_SYMBOL`, flatten,
+ * re-sort the flattened result (so the group iteration order never leaks
+ * into the response), then apply the global `MAX_BLAST_CALLERS_TOTAL` ceiling.
+ * `truncated` is true when either cap actually removed a row.
+ */
+function capAndOrderCallers(
+  callers: BlastCallerRow[],
+): { callers: BlastCallerRow[]; truncated: boolean } {
+  const bySymbol = new Map<string, BlastCallerRow[]>();
+  for (const c of callers) {
+    const arr = bySymbol.get(c.viaSymbol);
+    if (arr) arr.push(c);
+    else bySymbol.set(c.viaSymbol, [c]);
+  }
+
+  const perSymbolCapped: BlastCallerRow[] = [];
+  let perSymbolTruncated = false;
+  for (const group of bySymbol.values()) {
+    group.sort(compareCallers);
+    if (group.length > MAX_CALLERS_PER_SYMBOL) perSymbolTruncated = true;
+    perSymbolCapped.push(...group.slice(0, MAX_CALLERS_PER_SYMBOL));
+  }
+  perSymbolCapped.sort(compareCallers);
+
+  const globalTruncated = perSymbolCapped.length > MAX_BLAST_CALLERS_TOTAL;
+  return {
+    callers: perSymbolCapped.slice(0, MAX_BLAST_CALLERS_TOTAL),
+    truncated: perSymbolTruncated || globalTruncated,
+  };
 }
 
 // ---------------------------------------------------------------------------

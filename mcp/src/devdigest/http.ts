@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { DevDigestApi } from './api.js';
 import { ApiError, ApiUnreachableError } from './api.js';
-import { WireAgent, WireConvention, WirePr, WireRepo, WireReview, WireRun, WireRunStart } from './wire.js';
+import { WireAgent, WireBlast, WireConvention, WirePr, WireRepo, WireReview, WireRun, WireRunStart } from './wire.js';
 import type { Logger } from '../logging.js';
 import { apiUnreachableMessage, HTTP_TIMEOUT_MS, HTTP_TIMEOUT_SLOW_MS } from '../constants.js';
 
@@ -90,6 +90,13 @@ export class HttpDevDigestApi implements DevDigestApi {
       undefined,
       z.array(WireConvention),
     );
+  }
+
+  async getBlastRadius(prId: string): Promise<WireBlast> {
+    assertUuid(prId, 'prId');
+    // Default timeout (not the slow one) — this is a Postgres read over the
+    // repo-intel index, not a GitHub round-trip (specs/0005-blast-radius.md §10).
+    return this.request('GET', `/pulls/${encodeURIComponent(prId)}/blast`, undefined, WireBlast);
   }
 
   private async request<T>(

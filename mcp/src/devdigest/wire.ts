@@ -145,3 +145,63 @@ export const WireConvention = z.object({
   evidence_end_line: z.number().int().nullish(),
 });
 export type WireConvention = z.infer<typeof WireConvention>;
+
+/** Mirrors `PrBlastSymbol` (`server/src/vendor/shared/contracts/blast.ts:21`)
+ * — an entry in `PrBlastRadius.changed_symbols`. `kind` is dropped from the
+ * projection (§10's `{ symbol, location, callers }` never surfaces it), so
+ * it stays `.nullish()`; `file`/`name` are required — they build `location`
+ * and the `via_symbol` match key. `line` (1-based declaration line, `null`
+ * when the indexer recorded none) feeds `symbolLocation()`'s `file:line`
+ * projection — house style: `.nullish()` since the projection tolerates its
+ * absence (falls back to the bare file path). */
+export const WireBlastSymbol = z.object({
+  file: z.string(),
+  name: z.string(),
+  kind: z.string().nullish(),
+  line: z.number().int().nullish(),
+});
+export type WireBlastSymbol = z.infer<typeof WireBlastSymbol>;
+
+/** Mirrors `PrBlastCaller` (`server/src/vendor/shared/contracts/blast.ts:28`)
+ * — an entry in `PrBlastRadius.callers`. `rank` is dropped from the
+ * projection (the server already returns callers in its own total order,
+ * §5 of the Development Plan) so it stays `.nullish()`. */
+export const WireBlastCaller = z.object({
+  file: z.string(),
+  symbol: z.string(),
+  via_symbol: z.string(),
+  line: z.number().int(),
+  rank: z.number().nullish(),
+});
+export type WireBlastCaller = z.infer<typeof WireBlastCaller>;
+
+/** Mirrors `PrBlastEndpoint`
+ * (`server/src/vendor/shared/contracts/blast.ts:37`) — an entry in
+ * `PrBlastRadius.impacted_endpoints`. */
+export const WireBlastEndpoint = z.object({
+  endpoint: z.string(),
+  file: z.string(),
+  hops: z.number().int(),
+});
+export type WireBlastEndpoint = z.infer<typeof WireBlastEndpoint>;
+
+/** Mirrors `PrBlastRadius`
+ * (`server/src/vendor/shared/contracts/blast.ts:44`) — `GET
+ * /pulls/:id/blast`'s response. `pr_id`/`repo_id` are dropped entirely (the
+ * tool already has both from `resolveRepo`/`resolvePr` — never re-derived
+ * from the wire payload, constraint 12 of `specs/0004-local-mcp-server.md`).
+ * `reason` is `.nullish()` per the Development Plan §10 (it is `null` on the
+ * wire when `state === 'ok'`, and a future server build could drop the key
+ * entirely without breaking this parser). */
+export const WireBlast = z.object({
+  state: z.enum(['ok', 'partial', 'degraded']),
+  reason: z.string().nullish(),
+  changed_files: z.array(z.string()),
+  changed_symbols: z.array(WireBlastSymbol),
+  callers: z.array(WireBlastCaller),
+  callers_total: z.number().int(),
+  callers_truncated: z.boolean(),
+  impacted_endpoints: z.array(WireBlastEndpoint),
+  endpoints_truncated: z.boolean(),
+});
+export type WireBlast = z.infer<typeof WireBlast>;

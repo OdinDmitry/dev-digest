@@ -22,7 +22,7 @@ flowchart LR
 | `run_agent_on_pr` | `repo`, `pr`, `agent` | Run one agent on one PR and wait for the result (may take minutes). The only write tool. |
 | `get_findings` | `repo`, `pr`, `agent`, `run_id?`, `severity?`, `file?`, `limit?`, `detail?` | Findings from a review that already completed — use instead of re-running an agent. |
 | `get_conventions` | `repo`, `limit?` | Accepted/pending coding conventions extracted for a repository. Read-only — never runs extraction. |
-| `get_blast_radius` | `repo`, `pr`, `depth?` | **Not implemented** in this course starter — ships in lesson L04. Always returns an error naming `get_findings` as the alternative. |
+| `get_blast_radius` | `repo`, `pr`, `depth?` (accepted for input-schema stability, ignored — traversal is fixed at 2 hops) | Symbols, callers and HTTP endpoints a pull request's changed files reach through the import graph — a pure Postgres read over the `repo-intel` index, no LLM call. |
 
 `repo` is always `"owner/name"` (a GitHub URL also works); `pr` is the pull
 request number; `agent` is a name from `list_agents`. Every argument across

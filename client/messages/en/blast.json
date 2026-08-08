@@ -1,4 +1,6 @@
 {
+  "tab": "Blast",
+  "title": "Blast radius",
   "stat": {
     "symbols": "symbols",
     "callers": "callers",
@@ -14,5 +16,34 @@
   "graph": {
     "empty": "No downstream callers to graph.",
     "ariaLabel": "Blast radius graph"
-  }
+  },
+  "empty": {
+    "title": "No symbols were found in this PR's changed files",
+    "body": "This can happen when a PR only touches non-source files, like docs or config."
+  },
+  "state": {
+    "partial": "The repo-intel index is still incomplete — some callers may be missing.",
+    "degraded": "This repository isn't indexed, so blast radius can't be computed."
+  },
+  "reason": {
+    "flag_off": "Repo-intel indexing is turned off for this repository.",
+    "index_failed": "The last indexing attempt for this repository failed.",
+    "index_partial": "Indexing is still catching up — some files haven't been processed yet.",
+    "repo_too_large": "This repository is too large to fully index.",
+    "no_data": "No index data is available yet for this repository.",
+    "unknown": "Blast radius data isn't fully available for this repository right now."
+  },
+  "section": {
+    "symbols": "Changed symbols",
+    "endpoints": "Potentially affected endpoints"
+  },
+  "hops": {
+    "direct": "in this diff",
+    "one": "1 hop away",
+    "two": "2 hops away"
+  },
+  "rank": "rank",
+  "topPercent": "top {percent}%",
+  "symbolLine": "line {line}",
+  "jumpToFile": "View in this PR's diff"
 }

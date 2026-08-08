@@ -36,3 +36,12 @@ export function parsePatch(patch: string | null | undefined): Line[] {
   }
   return out;
 }
+
+/** Stable DOM id for a file's card. encodeURIComponent escapes /, spaces, #, quotes
+ *  into %XX, giving a valid HTML5 id with no whitespace. Look it up with
+ *  document.getElementById ONLY — encodeURIComponent leaves `.` unescaped and `.`
+ *  is a CSS class delimiter, so querySelector('#…') would break on any path with
+ *  a file extension. */
+export function diffFileCardId(path: string): string {
+  return `diff-file-${encodeURIComponent(path)}`;
+}

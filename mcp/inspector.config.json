@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "devdigest": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": { "DEVDIGEST_MCP_RUN_TIMEOUT_MS": "50000" },
+      "connectionTimeout": 10000,
+      "requestTimeout": 300000
+    }
+  }
+}

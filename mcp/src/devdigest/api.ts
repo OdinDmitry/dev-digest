@@ -1,5 +1,6 @@
 import type {
   WireAgent,
+  WireBlast,
   WireConvention,
   WireFinding,
   WirePr,
@@ -10,11 +11,12 @@ import type {
 } from './wire.js';
 
 /**
- * Ring 1 (port). The DevDigestApi surface — exactly these seven methods, one
- * per existing Fastify endpoint (Development Plan §1). Two implementations:
- * `HttpDevDigestApi` (ring 3, `http.ts`) and the in-memory test fake
- * (`test/helpers/fake-api.ts`) — that's what keeps `resolve.ts`/`tools/*`
- * hermetically testable without a running API.
+ * Ring 1 (port). The DevDigestApi surface — exactly these eight methods, one
+ * per existing Fastify endpoint (Development Plan §1, extended by
+ * `specs/0005-blast-radius.md` §10 with the 8th, `getBlastRadius`). Two
+ * implementations: `HttpDevDigestApi` (ring 3, `http.ts`) and the in-memory
+ * test fake (`test/helpers/fake-api.ts`) — that's what keeps
+ * `resolve.ts`/`tools/*` hermetically testable without a running API.
  */
 export interface DevDigestApi {
   listRepos(): Promise<WireRepo[]>;
@@ -24,11 +26,24 @@ export interface DevDigestApi {
   listRuns(prId: string): Promise<WireRun[]>;
   listReviews(prId: string): Promise<WireReview[]>;
   listConventions(repoId: string): Promise<WireConvention[]>;
+  /** `GET /pulls/:id/blast` — a pure Postgres read over the `repo-intel`
+   * index, no LLM call and no request-time AST/ripgrep scan (`specs/0005-blast-radius.md` §3). */
+  getBlastRadius(prId: string): Promise<WireBlast>;
 }
 
 // Re-exported so callers only need `./api.js` for both the port and its
 // payload shapes.
-export type { WireAgent, WireConvention, WireFinding, WirePr, WireRepo, WireReview, WireRun, WireRunStart };
+export type {
+  WireAgent,
+  WireBlast,
+  WireConvention,
+  WireFinding,
+  WirePr,
+  WireRepo,
+  WireReview,
+  WireRun,
+  WireRunStart,
+};
 
 /** One request failed with a structured (or unstructured) HTTP error from the
  * DevDigest API itself — as opposed to `ApiUnreachableError`, which means the

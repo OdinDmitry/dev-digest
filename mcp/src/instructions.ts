@@ -14,6 +14,9 @@ Start with list_agents to get a valid agent name. Then run_agent_on_pr(repo,
 pr, agent) creates the run, waits for it, and returns the finished findings in
 one call — it can take minutes. get_findings returns findings from a review
 that has already completed; use it instead of re-running an agent.
+get_blast_radius(repo, pr) is a fast, read-only lookup of which callers and
+HTTP endpoints a PR's changed files reach through the import graph — no LLM
+call.
 
 Arguments are always flat scalars: repo is "owner/name" (a GitHub URL also
 works), pr is the pull request number, agent is a name from list_agents.

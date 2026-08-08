@@ -14,3 +14,4 @@ export { FileCard } from "./FileCard";
 export type { DiffCommentApi } from "./comments";
 export { lineRowFor, lineSignFor } from "./styles";
 export type { Line } from "./helpers";
+export { diffFileCardId } from "./helpers";

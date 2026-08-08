@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
-import { parsePatch, type Line } from "../helpers";
+import { diffFileCardId, parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
   keysForLine,
@@ -34,18 +34,37 @@ export function FileCard({
   file,
   commenting,
   renderLineMarker,
+  targetFilePath,
+  targetFileNonce,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   /** Optional per-line marker slot — see `CodeLine`'s doc comment. Passed
    *  straight through; this layer stays domain-free. */
   renderLineMarker?: (args: { path: string; line: number }) => React.ReactNode;
+  /** Optional scroll target — see `diffFileCardId`'s doc comment. Passed
+   *  straight through; this layer stays domain-free. */
+  targetFilePath?: string | null;
+  targetFileNonce?: number;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  const isTarget = !!targetFilePath && targetFilePath === file.path;
+  // Force-open only. The actual scrollIntoView is owned by DiffTab (see its
+  // doc comment) — this component's own mount/unmount is not a stable enough
+  // lifecycle to hang a one-shot scroll off (the smart-diff loading fallback
+  // swap can remount this card mid-flight), but "open when targeted" is
+  // idempotent and safe to (re-)run on every mount.
+  React.useEffect(() => {
+    // `targetFileNonce` (not just `isTarget`) is a dependency on purpose: a
+    // second click on the same already-targeted file (e.g. after the user
+    // manually collapsed it) must still force it back open.
+    if (isTarget) setOpen(true); // a >200-line file (AUTO_EXPAND_MAX_LINES) starts collapsed
+  }, [isTarget, targetFileNonce]);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -63,7 +82,7 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div id={diffFileCardId(file.path)} style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />

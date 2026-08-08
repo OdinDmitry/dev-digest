@@ -44,6 +44,24 @@ export async function pullExists(db: Db, workspaceId: string, prId: string): Pro
   return !!row;
 }
 
+/** Workspace-scoped `repo_id` projection — doubles as the existence check
+ *  AND the repo lookup for callers (e.g. `BlastService`) that need the repo
+ *  id but must not have `PullRow` (with its full patch/id fields) cross into
+ *  a ring-2 service. `null` means "no such PR in this workspace" (either it
+ *  doesn't exist, or it belongs to another workspace) — both map to the same
+ *  `NotFoundError` at the call site, so no row shape is ever exposed. */
+export async function pullRepoId(
+  db: Db,
+  workspaceId: string,
+  prId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ repoId: t.pullRequests.repoId })
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, prId)));
+  return row?.repoId ?? null;
+}
+
 /** Domain-projected `pr_files` summary (path/additions/deletions only) — for
  *  callers that need per-file change stats but not the full row (patch, id,
  *  prId). Mirrors `latestFindingLocations`'s explicit `.select({...})` shape. */

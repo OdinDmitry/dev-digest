@@ -58,6 +58,8 @@ export interface BlastChangedSymbol {
   file: string;
   name: string;
   kind: string;
+  /** 1-based declaration line, NULL when the indexer recorded none for this symbol. */
+  line: number | null;
 }
 
 export interface BlastCallerRow {
@@ -69,6 +71,20 @@ export interface BlastCallerRow {
   line: number;
   /** file_rank.rank of the caller file (0 in the degraded/ripgrep path). */
   rank: number;
+  /** file_rank.percentile of the caller file (0 in the degraded/ripgrep path). */
+  percentile: number;
+}
+
+/**
+ * One HTTP endpoint reachable from the diff via the 2-hop reverse-import
+ * closure. `hops` is the shortest distance from a changed file: 0 = the
+ * endpoint is declared in a changed file itself, 1/2 = declared in a file
+ * that imports (or is imported by way of) a changed file at that depth.
+ */
+export interface BlastEndpointRow {
+  endpoint: string;
+  file: string;
+  hops: number;
 }
 
 export interface BlastResult {
@@ -82,6 +98,19 @@ export interface BlastResult {
    * Present on the persistent (non-degraded) path; absent otherwise.
    */
   factsByFile?: Record<string, { endpoints: string[]; crons: string[] }>;
+  /**
+   * Structured endpoint rows from the 2-hop reverse-import walk, with hop
+   * attribution. Present only on the persistent path (§4) — the degraded
+   * ripgrep fallback has no closure to attribute hops from and keeps using
+   * the flat `impactedEndpoints` array only.
+   */
+  impactedEndpointRows?: BlastEndpointRow[];
+  /** True when the reverse-import closure hit `MAX_BLAST_GRAPH_FILES`. */
+  endpointsTruncated?: boolean;
+  /** Caller row count BEFORE the per-symbol + global caps. */
+  callersTotal?: number;
+  /** True when either the per-symbol or the global caller cap fired. */
+  callersTruncated?: boolean;
   degraded?: boolean;
   reason?: DegradedReason;
 }

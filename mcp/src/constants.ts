@@ -171,12 +171,39 @@ export function noConventionsExtractedMessage(repoFullName: string): string {
   );
 }
 
-/** get_blast_radius (§9) — not-implemented stub, both the tool description
- * lead-in and the Tool Execution Error carry this. */
-export const BLAST_RADIUS_NOT_IMPLEMENTED_MESSAGE =
-  `get_blast_radius is not implemented in this DevDigest build (it ships in course lesson L04). ` +
-  `Nothing was analysed. For what a review found on this PR, call get_findings with repo, pr and ` +
-  `an agent name from list_agents; to see the changed files themselves, open ${WEB_UI_URL}. Do not retry this tool.`;
+/** get_blast_radius (`specs/0005-blast-radius.md` §10) — the index is
+ * degraded/failed, so the route's §3-step-4 gate never even calls
+ * `getBlastRadius` server-side. A Tool Execution Error, not a fake empty
+ * success. `reason` is the server's own free-text `DegradedReason` value
+ * (or null) — interpolated as-is, it comes from server state, never from
+ * indexed repository content. */
+export function blastDegradedMessage(repoFullName: string, reason: string | null): string {
+  const why = reason ? `reason: ${reason}` : 'no reason was reported';
+  return (
+    `Blast radius cannot be computed for ${repoFullName} — its repo-intel index is not ready (${why}). ` +
+    `Re-index it at ${WEB_UI_URL} → the repository → re-index, then call get_blast_radius again.`
+  );
+}
+
+/** get_blast_radius `state: 'partial'` (§10) — a SUCCESSFUL result, not an
+ * error; results are still returned alongside this caveat. Fixed text, no
+ * interpolation, so it stays a single member of the "next_step is always one
+ * of a small constant set" family the injection-guard test pins. */
+export const BLAST_PARTIAL_NEXT_STEP =
+  "This repository's repo-intel index is partial, so some callers or endpoints may be missing. " +
+  'Results below are still real. Re-index the repository for a complete map.';
+
+/** get_blast_radius `state: 'ok'` with zero changed symbols (§10) — a real
+ * answer (e.g. the diff touches only docs/config), not an error. */
+export const BLAST_EMPTY_NEXT_STEP =
+  "This pull request's changed files declare no indexed source symbols (e.g. only docs or config " +
+  'changed), so there is nothing further to trace for blast radius.';
+
+/** get_blast_radius — the MCP-side symbol/caller caps (`MAX_BLAST_SYMBOLS`,
+ * `MAX_BLAST_CALLERS_PER_SYMBOL`) trimmed the result. */
+export const BLAST_TRUNCATED_NEXT_STEP =
+  'Showing a capped subset of symbols and callers for this pull request — the full map is larger. ' +
+  'Open the Blast tab in the DevDigest UI for the complete result.';
 
 /** list_agents empty-result next_step (§5) — a non-error result. */
 export const NO_AGENTS_CONFIGURED_NEXT_STEP = `No agents are configured yet. Create one in the DevDigest UI: ${WEB_UI_URL} → Agents.`;

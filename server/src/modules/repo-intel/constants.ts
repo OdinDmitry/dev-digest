@@ -30,6 +30,22 @@ export const EXCLUDED_DIRS = [
 export const MAX_CALLERS_PER_SYMBOL = 20;
 
 /**
+ * [T4] Blast — total files visited across the 2-hop reverse-import closure
+ * (`reverseImportClosure`), summed over both hops plus the changed files
+ * themselves. A hub file's importer set can run into the thousands; the
+ * closure keeps the highest-ranked files on overflow rather than growing
+ * unbounded.
+ */
+export const MAX_BLAST_GRAPH_FILES = 300;
+
+/**
+ * [T4] Blast — global ceiling on returned caller rows, applied AFTER the
+ * per-symbol `MAX_CALLERS_PER_SYMBOL` cap so a PR touching many symbols
+ * can't return an unbounded total.
+ */
+export const MAX_BLAST_CALLERS_TOTAL = 200;
+
+/**
  * [T1] Bumped whenever the AST extractor or symbol schema changes. A mismatch
  * with `repo_index_state.indexer_version` forces a full reindex.
  *

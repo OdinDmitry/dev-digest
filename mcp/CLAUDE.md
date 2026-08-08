@@ -2,7 +2,7 @@
 
 `@devdigest/mcp` — a local **stdio MCP server** that exposes DevDigest to
 Claude Code / Claude Desktop: five tools (`list_agents`, `run_agent_on_pr`,
-`get_findings`, `get_conventions`, `get_blast_radius` — a stub) backed by the
+`get_findings`, `get_conventions`, `get_blast_radius`) backed by the
 already-running local Fastify API on `http://localhost:3001`. No database,
 GitHub, filesystem, or secrets access — a thin HTTP client, nothing else.
 Full picture: [README.md](README.md).

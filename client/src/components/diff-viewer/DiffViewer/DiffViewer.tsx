@@ -15,12 +15,18 @@ export function DiffViewer({
   files,
   commenting,
   renderLineMarker,
+  targetFilePath,
+  targetFileNonce,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   /** Optional per-line marker slot — see `CodeLine`'s doc comment. Passed
    *  straight through; this layer stays domain-free. */
   renderLineMarker?: (args: { path: string; line: number }) => React.ReactNode;
+  /** Optional scroll target — see `diffFileCardId`'s doc comment. Passed
+   *  straight through; this layer stays domain-free. */
+  targetFilePath?: string | null;
+  targetFileNonce?: number;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -29,7 +35,14 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f, i) => (
-        <FileCard key={i} file={f} commenting={commenting} renderLineMarker={renderLineMarker} />
+        <FileCard
+          key={i}
+          file={f}
+          commenting={commenting}
+          renderLineMarker={renderLineMarker}
+          targetFilePath={targetFilePath}
+          targetFileNonce={targetFileNonce}
+        />
       ))}
     </div>
   );

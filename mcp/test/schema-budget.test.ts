@@ -88,8 +88,7 @@ describe('token-budget guards (§12)', () => {
       expect(byName[name]!.title).toBeTruthy();
       expect(byName[name]!.annotations).toBeTruthy();
     }
-    expect(byName['get_blast_radius']!.outputSchema).toBeUndefined();
-    for (const name of ['list_agents', 'run_agent_on_pr', 'get_findings', 'get_conventions']) {
+    for (const name of ['list_agents', 'run_agent_on_pr', 'get_findings', 'get_conventions', 'get_blast_radius']) {
       expect(byName[name]!.outputSchema).toBeTruthy();
     }
   });

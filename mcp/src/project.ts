@@ -1,13 +1,19 @@
-import type { WireAgent, WireConvention, WireFinding } from './devdigest/wire.js';
+import type { WireAgent, WireBlast, WireConvention, WireFinding } from './devdigest/wire.js';
 import type {
   AgentOut,
   AgentsListResult,
+  BlastRadiusResult,
+  BlastSymbolOut,
   ConventionOut,
   ConventionsListResult,
   FindingOut,
   ReviewResult,
 } from './tools/schemas.js';
+import { MAX_BLAST_CALLERS_PER_SYMBOL, MAX_BLAST_SYMBOLS } from './tools/schemas.js';
 import {
+  BLAST_EMPTY_NEXT_STEP,
+  BLAST_PARTIAL_NEXT_STEP,
+  BLAST_TRUNCATED_NEXT_STEP,
   MAX_DESCRIPTION_CHARS,
   MAX_RATIONALE_CHARS,
   MAX_RESULT_CHARS,
@@ -261,6 +267,115 @@ export function renderConventionsText(result: ConventionsListResult): string {
   for (const c of result.conventions) {
     const evidence = c.evidence ? ` (${c.evidence})` : '';
     lines.push(`- [${c.status}] ${c.rule}${evidence}`);
+  }
+  lines.push(`next_step: ${result.next_step ?? 'none'}`);
+  return capResultText(lines.join('\n'));
+}
+
+// ---- Blast radius (get_blast_radius, `specs/0005-blast-radius.md` §10) ---
+
+/** `PrBlastSymbol` now carries a nullable declaration `line`
+ * (`server/src/vendor/shared/contracts/blast.ts` — `specs/0006-blast-radius-polish.md`
+ * §1); `PrBlastEndpoint` still carries none. A symbol's "location" is
+ * `file:line` when a line is known, `file` alone otherwise; an endpoint's
+ * "location" stays file-only (out of scope, see `specs/0006-…` §"Out of
+ * scope"); a caller's is `file:line`, the `0004` §10 `"path:line"` form. */
+function symbolLocation(file: string, line: number | null): string {
+  return line == null ? file : `${file}:${line}`;
+}
+function callerLocation(file: string, line: number): string {
+  return `${file}:${line}`;
+}
+
+/**
+ * `wire.state` must already be narrowed away from `'degraded'` by the
+ * caller (`tools/get-blast-radius.ts` throws before ever reaching this
+ * function) — this ternary is defensive, mirroring
+ * `blast/service.ts`'s own `state = indexState.status === 'partial' ? …`
+ * fallback server-side, never actually asked to resolve a `'degraded'` wire
+ * value in practice.
+ *
+ * MCP-sized caps (`MAX_BLAST_SYMBOLS`, `MAX_BLAST_CALLERS_PER_SYMBOL`) are
+ * separate from the server's UI-oriented 20/symbol budget — this is a
+ * context-window budget, not a UI-page budget. `symbols`/`callers` grouping
+ * is by `via_symbol === symbol.name` (mirrors the client's Blast tab, §7).
+ */
+export function projectBlast(wire: WireBlast, repoFullName: string, prNumber: number): BlastRadiusResult {
+  const state: 'ok' | 'partial' = wire.state === 'partial' ? 'partial' : 'ok';
+
+  const symbolsTruncated = wire.changed_symbols.length > MAX_BLAST_SYMBOLS;
+  const shownSymbols = wire.changed_symbols.slice(0, MAX_BLAST_SYMBOLS);
+
+  let callersPerSymbolTruncated = false;
+  const symbols: BlastSymbolOut[] = shownSymbols.map((s) => {
+    const matching = wire.callers.filter((c) => c.via_symbol === s.name);
+    const shownCallers = matching.slice(0, MAX_BLAST_CALLERS_PER_SYMBOL);
+    if (shownCallers.length < matching.length) callersPerSymbolTruncated = true;
+    return {
+      symbol: s.name,
+      location: symbolLocation(s.file, s.line ?? null),
+      callers: shownCallers.map((c) => ({ location: callerLocation(c.file, c.line), symbol: c.symbol })),
+    };
+  });
+
+  const endpoints = wire.impacted_endpoints.map((e) => ({
+    endpoint: e.endpoint,
+    location: symbolLocation(e.file, null), // endpoints never carry a line — out of scope, §"Out of scope"
+    hops: e.hops,
+  }));
+
+  const truncated =
+    wire.callers_truncated ||
+    wire.endpoints_truncated ||
+    symbolsTruncated ||
+    callersPerSymbolTruncated;
+
+  let nextStep: string | null = null;
+  if (state === 'partial') {
+    nextStep = BLAST_PARTIAL_NEXT_STEP;
+  } else if (symbols.length === 0) {
+    nextStep = BLAST_EMPTY_NEXT_STEP;
+  } else if (truncated) {
+    nextStep = BLAST_TRUNCATED_NEXT_STEP;
+  }
+
+  return {
+    repo: repoFullName,
+    pr: prNumber,
+    state,
+    reason: wire.reason ?? null,
+    changed_files_total: wire.changed_files.length,
+    symbols,
+    endpoints,
+    callers_total: wire.callers_total,
+    truncated,
+    next_step: nextStep,
+  };
+}
+
+/** Deterministic text rendering (§10, mirroring `renderReviewText`'s
+ * shape) — the header is always the first line, `next_step` is always the
+ * last, and every untrusted field (symbol/caller/endpoint names and paths,
+ * sourced from indexed third-party code) only ever appears inside a
+ * labelled list line in between. */
+export function renderBlastText(result: BlastRadiusResult): string {
+  const lines: string[] = [
+    `${result.repo} #${result.pr} — blast radius (${result.state}) — ${result.changed_files_total} changed file(s)`,
+  ];
+  if (result.reason) lines.push(`reason: ${result.reason}`);
+  lines.push(`symbols: ${result.symbols.length} — callers_total: ${result.callers_total}`);
+  for (const s of result.symbols) {
+    lines.push(`- ${s.symbol} (${s.location})`);
+    if (s.callers.length === 0) {
+      lines.push('  no known callers');
+    }
+    for (const c of s.callers) {
+      lines.push(`  called via ${c.symbol} at ${c.location}`);
+    }
+  }
+  lines.push(`endpoints: ${result.endpoints.length}`);
+  for (const e of result.endpoints) {
+    lines.push(`- ${e.endpoint} (${e.location}, ${e.hops} hop(s))`);
   }
   lines.push(`next_step: ${result.next_step ?? 'none'}`);
   return capResultText(lines.join('\n'));
