@@ -6,8 +6,8 @@ for exact behavior read each agent's own file.
 | Agent | Responsibility | Tools | Skills preloaded | Model | Input | Output |
 |---|---|---|---|---|---|---|
 | [researcher.md](researcher.md) | Answers a specific research question — repo search or external/web — without writing code | `Glob, Grep, Read, WebFetch, WebSearch` | none | sonnet | A concrete research question (internal, external, or both) | Text report in the reply (`## Query / Findings / Evidence / References / Could not determine`) — no file written |
-| [spec-creator.md](spec-creator.md) | Turns a feature request + design mockups into an implementation-free SDD spec with EARS acceptance criteria; analyses designs for missing states, corner cases, cross-module communication and UX gaps. Never names files, layers or libraries | `Read, Grep, Glob, Write, Edit` | `mermaid-diagram, security` | opus | A feature request, optionally with design mockup paths | `docs/specs/<module>/SPEC-NN-<slug>.md` (or blocking questions and no file) + a design-analysis/recommendations report |
-| [implementation-planner.md](implementation-planner.md) | Turns an approved spec into a Development Plan binding every task to an AC and a test; reviews the requirements first and asks single- vs multi-agent execution mode. Does not write specs or code | `Read, Grep, Glob, Write` | `onion-architecture, frontend-ui-architecture, drizzle-orm-patterns, postgresql-table-design, zod, security, engineering-insights` | opus | Path to an approved `docs/specs/**/SPEC-NN-*.md` | `docs/plans/YYYY-MM-DD-<slug>.md` (or blocking questions and no file) + a requirements-review report |
+| [spec-creator.md](spec-creator.md) | Turns a feature request + design mockups into an implementation-free SDD spec with EARS acceptance criteria; analyses designs for missing states, corner cases, cross-module communication and UX gaps. Never names files, layers or libraries | `Read, Grep, Glob, Write, Edit` | `ears-acceptance-criteria, accessibility-requirements, mermaid-diagram, security` | opus | A feature request, optionally with design mockup paths | `docs/specs/<module>/SPEC-NN-<slug>.md` (or blocking questions and no file) + a design-analysis/recommendations report |
+| [implementation-planner.md](implementation-planner.md) | Turns an approved spec into a Development Plan binding every task to an AC and a test; reviews the requirements first and asks single- vs multi-agent execution mode. Does not write specs or code | `Read, Grep, Glob, Write` | `ears-acceptance-criteria, onion-architecture, frontend-ui-architecture, drizzle-orm-patterns, postgresql-table-design, zod, security, engineering-insights` | opus | Path to an approved `docs/specs/**/SPEC-NN-*.md` | `docs/plans/YYYY-MM-DD-<slug>.md` (or blocking questions and no file) + a requirements-review report |
 | [implementer.md](implementer.md) | Executes an existing Development Plan across frontend/backend, applying the skills the plan names and running the affected modules' tests/typecheck. Does not perform architecture or security review | `Read, Grep, Glob, Edit, Write, Bash` | `fastify-best-practices, next-best-practices, react-best-practices, react-testing-library, drizzle-orm-patterns, postgresql-table-design, zod, onion-architecture, frontend-ui-architecture, security, typescript-expert, engineering-insights` (every project engineering-convention skill) | sonnet | Path to a Development Plan file under `docs/plans/` | Code changes scoped to the plan's file list + a structured report (`## Plan reference / Steps completed / Tests run & results / Scope deviations / Note`) |
 | [test-writer.md](test-writer.md) | Writes and extends tests for existing client/server code and runs the module's test command; never edits implementation code | `Read, Grep, Glob, Edit, Write, Bash` | `react-testing-library, fastify-best-practices, zod, typescript-expert, engineering-insights` | sonnet | A component/module/behavior to cover, or a plan step calling for tests | New/extended test files + a report (`## Code under test / Tests added / Commands run & results / Cases left uncovered / Note`) |
 | [architecture-reviewer.md](architecture-reviewer.md) | Reviews written code for layering and import-direction violations; evidence-backed findings only, no generic advice. Read-only | `Read, Grep, Glob, Bash` (git inspection only) | `onion-architecture, frontend-ui-architecture, engineering-insights` | opus | A diff, a file list, or a module to review | Plain-text findings report in the reply (`## Scope reviewed / Findings (file:line) / Checked and clean / Not assessed`) — no file written |
@@ -16,12 +16,17 @@ for exact behavior read each agent's own file.
 
 None of the eight agents has the `Skill` tool — their skills are preloaded
 in full via the `skills:` frontmatter field instead, so no tool call is
-needed to fetch a skill's content mid-task. `spec-creator` gets only
-`mermaid-diagram` (workflow/module-interaction diagrams) and `security`
-(untrusted-input handling) — the architecture and framework skills are
-deliberately withheld, because a spec that knows about layers and libraries
-stops being implementation-free; `implementation-planner` gets the
-architecture/placement-decision skills it needs to ground the plan;
+needed to fetch a skill's content mid-task. `spec-creator` gets the two
+spec-authoring skills (`ears-acceptance-criteria`,
+`accessibility-requirements`) plus `mermaid-diagram` for
+workflow/module-interaction diagrams and `security` for untrusted-input
+handling — the architecture and framework skills are deliberately withheld,
+because a spec that knows about layers and libraries stops being
+implementation-free, and `engineering-insights` is withheld too because its
+protocol is about *appending* to `insights.md`, which `spec-creator` may never
+do; `implementation-planner` gets the architecture/placement-decision skills it
+needs to ground the plan, plus `ears-acceptance-criteria` — it never writes a
+criterion, but it must recognise one it cannot bind a test to;
 `implementer` gets the full engineering-convention catalog, since a plan
 step can land in either stack and it shouldn't miss applying a convention
 because a skill wasn't loaded; `test-writer` gets the client/server testing
@@ -149,11 +154,16 @@ question) and re-runs the agent with the findings.
   state-driven `WHILE`, unwanted-behaviour `IF…THEN`, optional-feature
   `WHERE`, all with `SHALL`) that make an acceptance criterion collapse into
   one testable statement with no ambiguity about trigger, state or response.
-  Grounds `spec-creator`'s acceptance-criteria rules and the bad→better
-  examples in its prompt. The canonical form lives in
-  [docs/specs/README.md](../../docs/specs/README.md); the agent prompt teaches
-  the translation from a vague ask, which is the part the syntax doesn't
-  cover.
+  Grounds the [`ears-acceptance-criteria`](../skills/ears-acceptance-criteria/SKILL.md)
+  skill, which is where the patterns, the translation moves, the
+  AC-identifier rules and the validation checklist live — one source,
+  preloaded into both `spec-creator` and `implementation-planner` rather than
+  restated in each prompt. The human-facing summary is in
+  [docs/specs/README.md](../../docs/specs/README.md); `spec-creator`'s prompt
+  keeps only the worked bad→better examples on this repo's own feature, which
+  a general skill cannot supply. `plan-verifier` deliberately does **not**
+  preload it: it checks that each `AC-N` is covered by a task and a passing
+  test, which needs the identifiers, not the grammar.
 
 Two rules are this design's own extrapolation rather than a directly
 sourced Anthropic practice — see `implementation-planner`'s Step 4 (it should

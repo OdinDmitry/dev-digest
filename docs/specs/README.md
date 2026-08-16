@@ -34,6 +34,7 @@ feature specs live here, under `docs/specs/e2e/`.
 Status: draft | approved | implemented
 Modules: <client, server, …>
 Supersedes: <SPEC-NN, if this replaces an earlier decision — else "—">
+Superseded by: <SPEC-MM, filled in when a later spec replaces this one — else "—">
 Design refs: <paths under _design/, or "—">
 
 ## Problem & why
@@ -66,6 +67,16 @@ response. Five patterns (`SHALL` is mandatory in all of them):
 Rejected as acceptance criteria: "fast", "user-friendly", "properly",
 "handles errors", "should" instead of `SHALL`, or two behaviours in one AC.
 
+The full rules — how to translate a vague ask into one of these patterns, and
+the checklist for judging whether a criterion is well-formed — live in the
+[`ears-acceptance-criteria`](../../.claude/skills/ears-acceptance-criteria/SKILL.md)
+skill, which is preloaded into `spec-creator` and `implementation-planner`.
+
+**`AC-N` identifiers are an API.** Plan tasks, traceability tables, test names
+and review reports point at them. Never renumber, reuse or repurpose one: a
+retired criterion is marked deprecated with a pointer, and a changed
+requirement gets a new number.
+
 ## Inputs and provenance
 
 Each input carries one tag saying where it comes from — this is what makes the
@@ -79,9 +90,16 @@ cost and the determinism of a feature visible before it is built:
 
 ## Lifecycle
 
-`draft` — written by `spec-creator`, may still carry `[NEEDS CLARIFICATION]`.
+`draft` — written by `spec-creator`, may still carry `[NEEDS CLARIFICATION]`,
+and may be revised freely.
 `approved` — a human flipped it; only then may a plan be written against it.
 `implemented` — the plan shipped and `plan-verifier` passed.
+
+**Approved and implemented specs are frozen.** Once a plan is bound to a
+spec's acceptance criteria, editing it in place silently invalidates tasks and
+tests. A changed requirement gets a **new** spec carrying `Supersedes: SPEC-NN`,
+and the old one gets `Superseded by: SPEC-MM` in its header — that reciprocal
+line is the only permitted edit to a non-draft spec.
 
 Once implemented, fold anything still true into the owning module's
 `CLAUDE.md`/`docs/` and archive or delete the spec.

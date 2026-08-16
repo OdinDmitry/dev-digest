@@ -17,6 +17,8 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
+| [ears-acceptance-criteria](ears-acceptance-criteria/SKILL.md) | Specs | EARS patterns, translating a vague ask into one testable criterion, AC-identifier rules, validation checklist |
+| [accessibility-requirements](accessibility-requirements/SKILL.md) | Specs | What to interrogate for a11y and how to phrase it as a requirement — not as markup |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Pre-PR gate — routes the diff to the skills that govern it; a CRITICAL finding blocks `gh pr create` |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads/writes per-module `insights.md` — non-obvious discoveries, append-only |
