@@ -16,7 +16,7 @@ Investigation confirmed neither surface exists in any form today:
   line per run ("N findings · N blockers") — no per-severity breakdown.
 
 This is a from-scratch build, paired with [server spec
-0001](../../server/specs/0001-severity-findings-counters.md) for the one
+0001](../server/0001-severity-findings-counters.md) for the one
 place the client needs new API data (the PR list).
 
 ## What we decided

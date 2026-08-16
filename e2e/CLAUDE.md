@@ -21,8 +21,10 @@ only safe with a freshly-seeded DB, see README precondition)
 
 ## Further reading (load only if relevant to the task)
 - [docs/](docs/) — deep dives per topic
-- [feature-specs/](feature-specs/) — design specs for planned/in-progress
-  features (**not** `specs/` — that name is taken by the flow JSON files above)
+- [../docs/specs/](../docs/specs/README.md) — specs for planned features
+  (what/why). Note: this package's own `specs/` is the flow JSON above, so e2e
+  feature specs live under `docs/specs/e2e/`, not here
+- [../docs/plans/](../docs/plans/README.md) — Development Plans (how)
 
 ## Non-default conventions
 - Locators are deterministic only (`--url`, `--text`, `find role|text|label`)

@@ -15,7 +15,7 @@ This spec is what filled the gap: a `skills` CRUD module, an import path for
 markdown/zip uploads, the wiring that actually resolves an agent's linked
 skills into its prompt, and — in a second pass — version history with restore
 and a per-skill "linked agent count" rollup for the redesigned client UI (see
-[client spec 0002](../../client/specs/0002-skills.md)).
+[client spec 0002](../client/0002-skills.md)).
 
 ## What we decided
 

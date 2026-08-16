@@ -4,7 +4,7 @@
 
 The client needs a per-severity findings breakdown (CRITICAL/WARNING/
 SUGGESTION counts) in two places — see [client spec
-0001](../../client/specs/0001-severity-findings-counters.md) for the full
+0001](../client/0001-severity-findings-counters.md) for the full
 UI picture. Of the two, only the **PR list** needs a server change.
 
 `GET /repos/:id/pulls` currently has this explicit comment

@@ -25,7 +25,8 @@ told otherwise. At the end of the task, update it; don't skip this step.
 
 ## Further reading (load only if relevant to the task)
 - [docs/](docs/) — deep dives per topic
-- [specs/](specs/) — design specs for planned/in-progress features
+- [../docs/specs/](../docs/specs/README.md) — specs for planned features (what/why)
+- [../docs/plans/](../docs/plans/README.md) — Development Plans (how)
 
 ## Non-default conventions
 - Routes declare zod `params`/`body` schemas via `fastify-type-provider-zod`

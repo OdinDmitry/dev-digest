@@ -1,18 +1,19 @@
 # Development Plan: Blast Radius UX fixes — `client` only
 
-> **Location/numbering note.** Root [`specs/`](README.md) holds cross-module
-> Development Plans produced by `planner` and consumed by `implementer`;
-> module-level `specs/` folders hold single-module *design* specs. This plan is
-> **`client/`-only** and would, by that rule alone, belong in
-> [`client/specs/`](../client/specs/README.md). It is deliberately filed here
-> anyway, on explicit instruction, as the **third entry in one continuous
-> series** — [`0005-blast-radius.md`](0005-blast-radius.md) (the shipped
-> feature) → [`0006-blast-radius-polish.md`](0006-blast-radius-polish.md) (line
-> numbers, percentile, in-diff jump, file grouping) → this one — so the series
-> stays readable in one place and takes the next number in root `specs/`'s own
-> sequence (`0001` … `0006` → `0007`). Splitting the third instalment into a
-> different folder from its two predecessors would cost more than the rule
-> saves.
+> **Location/numbering note.** [`docs/plans/`](README.md) holds cross-module
+> Development Plans; module-scoped ones live in `docs/plans/<module>/`. This
+> plan is **`client/`-only** and would, by that rule alone, belong in
+> [`docs/plans/client/`](client/). It is deliberately filed here anyway, on
+> explicit instruction, as the **third entry in one continuous series** —
+> [`0005-blast-radius.md`](0005-blast-radius.md) (the shipped feature) →
+> [`0006-blast-radius-polish.md`](0006-blast-radius-polish.md) (line numbers,
+> percentile, in-diff jump, file grouping) → this one — so the series stays
+> readable in one place and takes the next number in the top-level sequence
+> (`0001` … `0006` → `0007`). Splitting the third instalment into a different
+> folder from its two predecessors would cost more than the rule saves.
+>
+> Historical: written before the `docs/specs` + `docs/plans` split, when these
+> files lived in a root `specs/` folder.
 >
 > **Everything in §"Design decisions" is already decided.** The four fixes come
 > from the user after using the shipped `0006` feature live, including the root

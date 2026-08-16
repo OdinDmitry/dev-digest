@@ -2,7 +2,7 @@
 
 ## Why
 
-Paired with [server spec 0003](../../server/specs/0003-conventions-extractor.md)
+Paired with [server spec 0003](../server/0003-conventions-extractor.md)
 for the API this UI drives. A repo-scoped page where a user runs extraction,
 reviews candidate house conventions with real clickable evidence, and merges
 the accepted ones into a Skill — closing lesson **L02**'s second half (the

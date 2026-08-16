@@ -7,7 +7,7 @@ prompt rules, attach them to agents in order, and — once mockups arrived for
 the detail screen — a proper Config/Preview/Versions editor matching the
 agent editor's layout, with line numbers in the body editor and a real
 version-history-with-diff-and-restore view. Paired with [server spec
-0002](../../server/specs/0002-skills.md) for the CRUD/import/versioning API
+0002](../server/0002-skills.md) for the CRUD/import/versioning API
 this UI drives.
 
 This shipped in two passes: a first cut (grid of cards + a side preview pane,

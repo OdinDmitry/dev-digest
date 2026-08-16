@@ -9,9 +9,9 @@ architectural boundary review, plan-conformance verification, and
 documentation generation. Each new file must match the frontmatter shape
 (`name`, `description`, `tools`, `skills`, `model`) and prompt body shape
 (role framing → numbered `## Step N` sections → `## Final report` fenced
-block) already used by [`planner.md`](../.claude/agents/planner.md),
-[`implementer.md`](../.claude/agents/implementer.md) and
-[`researcher.md`](../.claude/agents/researcher.md) — no new frontmatter
+block) already used by [`implementation-planner.md`](../../.claude/agents/implementation-planner.md),
+[`implementer.md`](../../.claude/agents/implementer.md) and
+[`researcher.md`](../../.claude/agents/researcher.md) — no new frontmatter
 fields, no new prompt structure. `.claude/agents/README.md` gains one table
 row per new agent plus new/extended `Sources` bullets, in its existing style.
 This is meta-work on the repo's own Claude Code tooling; no application code

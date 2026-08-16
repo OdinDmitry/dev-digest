@@ -3,7 +3,7 @@
 ## Why
 
 Course lesson **L02** is "Skills in the product · Conventions extractor"
-([root README.md](../../README.md)). The Skills/Agents half already shipped (see
+([root README.md](../../../README.md)). The Skills/Agents half already shipped (see
 [spec 0002](0002-skills.md)) — full Skill CRUD/versioning/import, full Agent
 CRUD, `agent_skills` linking, and prompt-wiring that resolves an agent's
 linked skills into every review. The Conventions Extractor was the other

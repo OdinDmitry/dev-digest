@@ -20,6 +20,15 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
 - [mcp/CLAUDE.md](mcp/CLAUDE.md) — local stdio MCP server (Claude Code / Desktop → the API)
 - [e2e/CLAUDE.md](e2e/CLAUDE.md) — deterministic browser e2e (agent-browser, no LLM)
 
+## Feature documents
+- [docs/specs/](docs/specs/README.md) — SDD specs: **what** a feature must do
+  and why, in EARS acceptance criteria. Written by `spec-creator`,
+  implementation-free.
+- [docs/plans/](docs/plans/README.md) — Development Plans: **how** it gets
+  built, task → AC → test. Written by `implementation-planner`.
+- [.claude/agents/README.md](.claude/agents/README.md) — the agent chain that
+  produces and consumes both.
+
 ## Non-default conventions
 - This is a **course starter**: the DB schema already contains every table
   future lessons need. Unused ones (`ci`, `eval`, `skills`, `knowledge`, …)
