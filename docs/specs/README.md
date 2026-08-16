@@ -51,6 +51,11 @@ Design refs: <paths under _design/, or "—">
 ## Open questions               <- [NEEDS CLARIFICATION: …]
 ```
 
+**Size.** One spec covers one user-visible capability; 5–15 acceptance criteria
+is typical and 25 is the point at which it should have been two specs. Length
+is a separate signal: past ~600 lines with fewer than 25 criteria, the document
+is padded rather than oversized — the fix is cutting, not splitting.
+
 ## Acceptance criteria: EARS
 
 Every `AC-N` is one testable statement — no ambiguity about trigger, state or

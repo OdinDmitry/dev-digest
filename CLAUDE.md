@@ -28,6 +28,9 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
   built, task → AC → test. Written by `implementation-planner`.
 - [.claude/agents/README.md](.claude/agents/README.md) — the agent chain that
   produces and consumes both.
+- `/impl <plan-path>` ([.claude/commands/impl.md](.claude/commands/impl.md)) —
+  runs an approved plan end to end: implement → review ∥ tests → fix loop →
+  verify. `spec-creator` and `implementation-planner` stay manual, by design.
 
 ## Non-default conventions
 - This is a **course starter**: the DB schema already contains every table

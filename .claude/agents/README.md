@@ -8,10 +8,10 @@ for exact behavior read each agent's own file.
 | [researcher.md](researcher.md) | Answers a specific research question — repo search or external/web — without writing code | `Glob, Grep, Read, WebFetch, WebSearch` | none | sonnet | A concrete research question (internal, external, or both) | Text report in the reply (`## Query / Findings / Evidence / References / Could not determine`) — no file written |
 | [spec-creator.md](spec-creator.md) | Turns a feature request + design mockups into an implementation-free SDD spec with EARS acceptance criteria; analyses designs for missing states, corner cases, cross-module communication and UX gaps. Never names files, layers or libraries | `Read, Grep, Glob, Write, Edit` | `ears-acceptance-criteria, accessibility-requirements, mermaid-diagram, security` | opus | A feature request, optionally with design mockup paths | `docs/specs/<module>/SPEC-NN-<slug>.md` (or blocking questions and no file) + a design-analysis/recommendations report |
 | [implementation-planner.md](implementation-planner.md) | Turns an approved spec into a Development Plan binding every task to an AC and a test; reviews the requirements first and asks single- vs multi-agent execution mode. Does not write specs or code | `Read, Grep, Glob, Write` | `ears-acceptance-criteria, onion-architecture, frontend-ui-architecture, drizzle-orm-patterns, postgresql-table-design, zod, security, engineering-insights` | opus | Path to an approved `docs/specs/**/SPEC-NN-*.md` | `docs/plans/YYYY-MM-DD-<slug>.md` (or blocking questions and no file) + a requirements-review report |
-| [implementer.md](implementer.md) | Executes an existing Development Plan across frontend/backend, applying the skills the plan names and running the affected modules' tests/typecheck. Does not perform architecture or security review | `Read, Grep, Glob, Edit, Write, Bash` | `fastify-best-practices, next-best-practices, react-best-practices, react-testing-library, drizzle-orm-patterns, postgresql-table-design, zod, onion-architecture, frontend-ui-architecture, security, typescript-expert, engineering-insights` (every project engineering-convention skill) | sonnet | Path to a Development Plan file under `docs/plans/` | Code changes scoped to the plan's file list + a structured report (`## Plan reference / Steps completed / Tests run & results / Scope deviations / Note`) |
-| [test-writer.md](test-writer.md) | Writes and extends tests for existing client/server code and runs the module's test command; never edits implementation code | `Read, Grep, Glob, Edit, Write, Bash` | `react-testing-library, fastify-best-practices, zod, typescript-expert, engineering-insights` | sonnet | A component/module/behavior to cover, or a plan step calling for tests | New/extended test files + a report (`## Code under test / Tests added / Commands run & results / Cases left uncovered / Note`) |
-| [architecture-reviewer.md](architecture-reviewer.md) | Reviews written code for layering and import-direction violations; evidence-backed findings only, no generic advice. Read-only | `Read, Grep, Glob, Bash` (git inspection only) | `onion-architecture, frontend-ui-architecture, engineering-insights` | opus | A diff, a file list, or a module to review | Plain-text findings report in the reply (`## Scope reviewed / Findings (file:line) / Checked and clean / Not assessed`) — no file written |
-| [plan-verifier.md](plan-verifier.md) | Checks implemented code against every item of a Development Plan and runs the plan's own Verification commands; reports gaps, not style preferences. Read-only | `Read, Grep, Glob, Bash` | none | opus | Path to a Development Plan whose implementation is finished | Per-task verdict table (task → AC → evidence) + gaps/scope report in the reply — no file written |
+| [implementer.md](implementer.md) | Executes an existing Development Plan across frontend/backend, applying the skills the plan names and running the touched modules' typecheck + fast unit tests. Authors no tests; does not perform architecture or security review | `Read, Grep, Glob, Edit, Write, Bash` | `fastify-best-practices, next-best-practices, react-best-practices, drizzle-orm-patterns, postgresql-table-design, zod, typescript-expert, engineering-insights` | sonnet | Path to a Development Plan file under `docs/plans/` — optionally plus a findings report (fix mode) | Code changes scoped to the plan's file list + a structured report (`## Plan reference / Steps completed / Handed to test-writer / Commands run & results / Scope deviations / Note`) |
+| [test-writer.md](test-writer.md) | The repo's **sole** test author — writes and extends tests for existing client/server code, working from a plan's Traceability table when given one; never edits implementation code | `Read, Grep, Glob, Edit, Write, Bash` | `react-testing-library, fastify-best-practices, zod, typescript-expert, engineering-insights` | sonnet | A component/module/behavior to cover, or a Development Plan whose `test-writer` tasks are outstanding | New/extended test files + a report (`## Code under test / Tests added / Plan coverage / Commands run & results / Cases left uncovered / Note`) |
+| [architecture-reviewer.md](architecture-reviewer.md) | Reviews written code for layering and import-direction violations; evidence-backed findings only, no generic advice. Read-only | `Read, Grep, Glob, Bash` (git inspection only) | `onion-architecture, frontend-ui-architecture, engineering-insights` | sonnet | A diff, a file list, or a module to review | Plain-text findings report in the reply (`## Scope reviewed / Findings (file:line) / Checked and clean / Not assessed`) — no file written |
+| [plan-verifier.md](plan-verifier.md) | Checks implemented code against every item of a Development Plan and runs the plan's own Verification commands; reports gaps, not style preferences. Read-only | `Read, Grep, Glob, Bash` | none | sonnet | Path to a Development Plan whose implementation is finished | Per-task verdict table (task → AC → evidence) + gaps/scope report in the reply — no file written |
 | [doc-writer.md](doc-writer.md) | Turns an implemented feature or a shipped plan into documentation with diagrams, placed per the per-module `docs/` topic-index convention | `Read, Grep, Glob, Write, Edit` | `mermaid-diagram, engineering-insights` | sonnet | An implemented feature and/or a Development Plan to document | `<module>/docs/<topic>.md` + a `CLAUDE.md` "Further reading" link + a short report |
 
 None of the eight agents has the `Skill` tool — their skills are preloaded
@@ -27,9 +27,16 @@ protocol is about *appending* to `insights.md`, which `spec-creator` may never
 do; `implementation-planner` gets the architecture/placement-decision skills it
 needs to ground the plan, plus `ears-acceptance-criteria` — it never writes a
 criterion, but it must recognise one it cannot bind a test to;
-`implementer` gets the full engineering-convention catalog, since a plan
-step can land in either stack and it shouldn't miss applying a convention
-because a skill wasn't loaded; `test-writer` gets the client/server testing
+`implementer` gets the framework and data-layer conventions for both stacks,
+since a plan step can land in either — but deliberately **not**
+`onion-architecture`, `frontend-ui-architecture`, `security` or
+`react-testing-library`, because it makes none of the decisions those govern:
+the planner already fixed every placement, `architecture-reviewer` audits the
+result, security review is out of scope by its own prompt, and `test-writer`
+owns tests. Those four cost ~64 KB of preloaded context on every invocation
+and were being paid for work the agent is forbidden to do; when a plan step
+genuinely turns on one, `implementer` reads that `SKILL.md` directly with
+`Read`. `test-writer` gets the client/server testing
 conventions plus `zod`/`typescript-expert` for fixtures; `architecture-reviewer`
 gets the two layering skills it checks against; `doc-writer` gets the
 diagram skill and the insights-boundary skill. `plan-verifier` and
@@ -38,6 +45,46 @@ claims against the plan rather than whether a convention was applied
 correctly, so it has no need for the convention skills; `researcher`
 answers open-ended questions where the relevant skill can't be predicted in
 advance.
+
+## Which model, and why
+
+`spec-creator` and `implementation-planner` are opus: they are where the
+decisions are made, they run once per feature, and a bad decision there
+propagates into every later phase. Everything downstream is sonnet.
+
+`architecture-reviewer` and `plan-verifier` were opus and are now sonnet. Both
+check code against rules that are already written down — `plan-verifier`
+enumerates a checklist, greps for named symbols and runs commands, and
+`architecture-reviewer` matches a diff against two skills' explicit import and
+placement rules with `file:line` evidence. Neither is open-ended judgement, and
+both run several times per feature inside `/impl`, which is where opus pricing
+actually hurt. The known cost of the downgrade is a higher false-positive rate
+on review; the findings-discipline rules in both prompts ("zero findings is a
+valid answer", "never pad toward a count", "cite an exact `file:line`") exist
+precisely for that, and `/impl` never auto-acts on SUGGESTION-grade findings.
+
+## Running the chain: `/impl`
+
+[`.claude/commands/impl.md`](../commands/impl.md) orchestrates everything from
+an approved plan onward: `implementer` → (`architecture-reviewer` ∥
+`test-writer`) → one fix loop fed by both → `plan-verifier`, with iteration
+caps and a scope gate on extra requirements.
+
+`spec-creator` and `implementation-planner` are deliberately **outside** it —
+they are run by hand and reviewed by a human before the plan is executable.
+
+Two ordering decisions in that chain are worth knowing. **Review and test
+authoring run in parallel** because their writes cannot collide — the reviewer
+is read-only and `test-writer` only ever touches test files. And **both feed a
+single fix loop**: an architecture finding and "this test fails because the
+implementation is wrong" are both defects for `implementer` in fix mode, so
+they go into one call per iteration rather than two. When a fix moves or
+renames something a new test imports, the repair goes back to `test-writer` —
+`implementer` never edits a test file to match its own change.
+
+`plan-verifier` runs last, after tests exist, which is what lets it give an
+honest verdict on the traceability table instead of reporting a wall of
+not-yet-written tests as gaps.
 
 ## How the agents connect
 
@@ -50,6 +97,20 @@ against the spec's acceptance criteria; `architecture-reviewer` checks the
 result's layering and import direction; `doc-writer` turns the shipped work
 into module documentation. They hand off through artifacts — the spec file,
 the plan file, the code, the docs — not through conversation.
+
+**Test authoring has exactly one owner: `test-writer`.** Every plan task
+carries an `owner:` field, and a test named in a plan's traceability table
+that does not exist yet must have a `test-writer` task producing it.
+`implementer` never writes one — it ships implementation code and proves it
+did not regress anything.
+
+**Running tests is split by cost.** A plan's `## Verification` has a *Fast
+loop* (`pnpm typecheck` + `pnpm test:unit --reporter=dot`, hermetic, seconds)
+that `implementer` and `test-writer` run per step, and a *Full* block —
+including `pnpm test:integration`, where every `server/*.it.test.ts` file
+spins up its own Postgres through testcontainers — that only `plan-verifier`
+runs, once, at the end. `--reporter=dot` is mandatory for agents: the default
+reporter prints every test name and floods the context.
 
 Specs live in [docs/specs/](../../docs/specs/README.md)
 (`<module>/SPEC-NN-<slug>.md`, or `cross/` when more than one module is

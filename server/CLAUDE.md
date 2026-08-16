@@ -9,8 +9,14 @@ Before starting work here (including its `repo-intel` submodule), read
 told otherwise. At the end of the task, update it; don't skip this step.
 
 ## Commands
-`pnpm dev` (:3001) · `pnpm build` · `pnpm test` (unit+integration) ·
-`pnpm typecheck` · `pnpm db:migrate` · `pnpm db:seed` · `pnpm db:generate`
+`pnpm dev` (:3001) · `pnpm build` · `pnpm test:unit` (23 hermetic files, ~13s,
+no Docker — the default during a work loop) · `pnpm test:integration` (the 12
+`*.it.test.ts` files, each spins up Postgres via testcontainers — slow, needs
+Docker) · `pnpm test` (both) · `pnpm typecheck` · `pnpm db:migrate` ·
+`pnpm db:seed` · `pnpm db:generate`
+
+Add `--reporter=dot` when an agent runs these: the default reporter prints
+every test name and floods the agent's context.
 
 ## Where things live
 - `src/modules/<name>/routes.ts` — one Fastify plugin per domain: `agents`,

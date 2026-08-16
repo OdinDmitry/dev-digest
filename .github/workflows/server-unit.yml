@@ -93,7 +93,7 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
-      # Inlined rather than `pnpm test:unit`: server/package.json is
-      # skip-worktree (a local variant), so the committed package.json may
-      # not carry the split scripts. Run vitest directly.
+      # Kept inlined even though server/package.json now carries `test:unit`
+      # with the same filter — CI states the exact selection it runs rather
+      # than inheriting it from a script that could be edited unnoticed.
       - run: pnpm exec vitest run --exclude '**/*.it.test.ts'

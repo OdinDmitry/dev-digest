@@ -57,9 +57,9 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
-      # Inlined rather than `pnpm test:integration`: server/package.json is
-      # skip-worktree, so we don't rely on the committed file carrying the split
-      # script. The `.it.test` filter selects exactly the 12 DB-backed files.
+      # Kept inlined even though server/package.json now carries
+      # `test:integration` with the same filter — CI states the exact selection
+      # it runs. The `.it.test` filter selects exactly the 12 DB-backed files.
       # vitest's config gives these a 120s timeout for container spin-up; no API
       # keys needed — LLM/git are mocked.
       - run: pnpm exec vitest run .it.test

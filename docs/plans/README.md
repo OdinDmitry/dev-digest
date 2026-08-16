@@ -17,11 +17,22 @@ docs/plans/
 ```
 
 Every plan states the spec it implements (`Spec: docs/specs/…`) and maps each
-task to an acceptance criterion and a test:
+task to an owner, an acceptance criterion and a test:
 
 ```
-- [ ] T1 analyzeRepo: stack, structure, routes  → AC-1 → test_facts
+- [ ] T1 analyzeRepo: stack, structure, routes — owner: `implementer`  → AC-1 → test_facts
+- [ ] T2 test_facts — owner: `test-writer`                             → AC-1 → test_facts
 ```
+
+`owner:` is `implementer` (implementation code) or `test-writer` (every new
+test file — `implementer` authors none). A test named in the traceability
+table that does not exist yet needs its own `test-writer` task, or the
+criterion ships unproven.
+
+`## Verification` is split in two: a **Fast loop** (`pnpm typecheck` +
+`pnpm test:unit --reporter=dot`) run per step by `implementer` and
+`test-writer`, and a **Full** block — including the Docker-backed
+`pnpm test:integration` — run once at the end by `plan-verifier`.
 
 Files numbered `000N-*.md` predate this convention — they were written when
 plans lived in a root `specs/` folder and no spec layer existed. Left as-is;

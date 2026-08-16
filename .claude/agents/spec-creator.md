@@ -252,9 +252,20 @@ the requirements changed after approval, write a **new** spec with
 not a `draft`. A spec still in `draft` you may revise freely, subject to the
 AC-identifier rules in Step 4.
 
-Aim for **under ~200 lines and 5–15 acceptance criteria**. If the feature
-cannot fit, that is a finding, not a formatting problem: write the spec for the
-coherent core and recommend the split in your report.
+**Size.** Two different signals, do not confuse them:
+
+- **Too big → split.** More than **25 acceptance criteria**, or more than one
+  user-visible capability in one document. That is a decomposition finding:
+  write the spec for the coherent core and recommend the split in your report.
+  A typical single-capability spec lands at 5–15 criteria.
+- **Too verbose → tighten.** Past **~600 lines** while still under 25 criteria,
+  the feature is not oversized — the document is padded. Look for restated
+  background, prose that repeats a criterion, implementation detail that crept
+  into Contracts, or a diagram doing the same job as the workflow prose. Cut,
+  do not split.
+
+Neither number is a hard stop; both are triggers to say something in the
+report rather than to silently truncate.
 
 ## Final self-check
 
@@ -275,7 +286,9 @@ fails, fix it and check again:
       answered or explicitly skipped as having no user-facing surface.
 - [ ] Every Step 3 finding exists somewhere in the **file** — as an AC, an edge
       case, a diagram element, a provenance row, or an open question.
-- [ ] The file is under ~200 lines, or the report recommends a split.
+- [ ] Under 25 acceptance criteria and one user-visible capability, or the
+      report recommends a split; under ~600 lines, or the report says what was
+      padded.
 - [ ] `Status: draft`, the SPEC number is unused, the file is under
       `docs/specs/`, and nothing outside `docs/specs/` was touched.
 - [ ] No non-draft spec was edited beyond a `Superseded by:` header line.

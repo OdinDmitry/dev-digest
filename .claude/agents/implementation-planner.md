@@ -95,15 +95,30 @@ placement, `drizzle-orm-patterns` / `postgresql-table-design` for schema,
 `zod` for contracts, `security` for auth and input handling. Apply only the
 ones that resolve a real question for this task.
 
-## Step 4 — name the governing skill per step
+## Step 4 — name the governing skill and the owner per step
 
-Every step states which project skill(s) govern it —
-`fastify-best-practices`, `next-best-practices`, `react-best-practices`,
-`react-testing-library`, `drizzle-orm-patterns`, `postgresql-table-design`,
-`zod`, `onion-architecture`, `frontend-ui-architecture`, `security`,
-`typescript-expert`, `engineering-insights` (`implementer` has all of these
-preloaded). A plan must never ask for something that contradicts a
-skill-enforced convention.
+Every step states which project skill(s) govern it. The catalog is
+[.claude/skills/README.md](../skills/README.md) — read it rather than working
+from this list, so a new skill is never missed. A plan must never ask for
+something that contradicts a skill-enforced convention.
+
+`implementer` preloads `fastify-best-practices`, `next-best-practices`,
+`react-best-practices`, `drizzle-orm-patterns`, `postgresql-table-design`,
+`zod`, `typescript-expert`, `engineering-insights`. Naming one of those is
+free. Naming `onion-architecture`, `frontend-ui-architecture` or `security`
+costs it a file read, so name them only when the step genuinely turns on that
+skill's rules — normally it does not, because *you* already made the
+placement decision and stated the exact file and layer.
+
+**Every task states an `owner:`** — `implementer` or `test-writer`:
+
+- `implementer` — implementation code. It does not author tests.
+- `test-writer` — every new or extended test file. The test named in a task's
+  `→ AC-N → test_name` binding is written by `test-writer`, so if that test
+  does not already exist, the plan needs a `test-writer` task for it.
+
+Do not leave a test implied by the traceability table alone with no task that
+produces it — that is the single most common way an AC ships unproven.
 
 ## Step 5 — write the plan
 
@@ -139,8 +154,8 @@ Execution mode: single-agent | multi-agent (<n> tracks)
 - [the exact shape both tracks code against]
 
 ## Tasks
-- [ ] T1 <what to do> — `file(s)` — skill: `skill-name` — → AC-1 → `test_name`
-- [ ] T2 ...
+- [ ] T1 <what to do> — `file(s)` — owner: `implementer` — skill: `skill-name` — → AC-1 → `test_name`
+- [ ] T2 <write the test> — `file(s)` — owner: `test-writer` — skill: `react-testing-library` — → AC-1 → `test_name`
 
 (multi-agent: group tasks under `### Track A — server` / `### Track B — client`,
 with disjoint file lists, then a final `### Integration` track.)
@@ -151,7 +166,14 @@ with disjoint file lists, then a final `### Integration` track.)
 | AC-1 | T1 | `test_facts` |
 
 ## Verification
-- [test/typecheck commands per module, from each module's CLAUDE.md]
+
+### Fast loop (implementer / test-writer, after every step)
+- `pnpm typecheck` per touched module
+- `pnpm test:unit --reporter=dot` per touched module
+
+### Full (plan-verifier, once at the end)
+- [every command above, plus `pnpm test:integration --reporter=dot` when a
+  `*.it.test.ts` file is involved]
 - [end-to-end check that proves the feature works]
 
 ## Explicit note
@@ -181,13 +203,18 @@ Verify against the file you wrote; fix and re-check anything that fails:
 
 - [ ] The plan names its spec, and every `AC-N` in that spec appears in the
       traceability table — no orphans in either direction.
-- [ ] Every task has an ID, a file list, a governing skill, an AC and a test.
+- [ ] Every task has an ID, a file list, an owner, a governing skill, an AC
+      and a test.
+- [ ] Every test named in the traceability table either already exists or has
+      a `test-writer` task that produces it.
+- [ ] Verification is split into a Fast loop and a Full block, and the fast
+      loop contains no `test:integration` and no bare `pnpm test`.
 - [ ] Execution mode is stated; if multi-agent, track file lists are disjoint,
       the shared contract is frozen up front, and an integration step exists.
 - [ ] Every placement decision traces to a preloaded skill's rule, not to
       preference.
 - [ ] Verification commands are copied from the modules' own `CLAUDE.md`, not
-      invented.
+      invented, and carry `--reporter=dot`.
 - [ ] Out of scope is non-empty.
 - [ ] No acceptance criterion was invented, reworded or renumbered here.
 - [ ] Nothing outside `docs/plans/` was written.

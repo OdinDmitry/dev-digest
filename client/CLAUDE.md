@@ -9,7 +9,12 @@ update it; don't skip this step.
 
 ## Commands
 `pnpm dev` (:3000) · `pnpm build` · `pnpm start` · `pnpm test` (vitest +
-jsdom, fetch mocked) · `pnpm typecheck`
+jsdom, fetch mocked) · `pnpm test:unit` (alias of `pnpm test` — every client
+test is hermetic; exists so agents can use one command name across modules) ·
+`pnpm typecheck`
+
+Add `--reporter=dot` when an agent runs these, to keep the output out of the
+agent's context.
 
 ## Where things live
 - `src/app/**/page.tsx` — routes (App Router): `/repos/:repoId/pulls`,
