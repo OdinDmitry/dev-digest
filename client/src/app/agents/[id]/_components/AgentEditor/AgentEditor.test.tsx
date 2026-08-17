@@ -3,6 +3,11 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
+// AgentEditor calls `useTranslations("context")` unconditionally (it's read
+// by the Context tab's ContextAttachPanel, mounted or not) — without this the
+// NextIntlClientProvider below throws a MISSING_MESSAGE error to stderr on
+// every render (client/insights.md 2026-08-16).
+import contextMessages from "../../../../../../messages/en/context.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
@@ -32,7 +37,7 @@ const AGENT: Agent = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages }}>
       <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );

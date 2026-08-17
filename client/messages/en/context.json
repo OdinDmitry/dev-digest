@@ -20,5 +20,24 @@
     "loadError": "Couldn’t load spec",
     "save": "Save",
     "saving": "Saving…"
-  }
+  },
+  "unavailable": "Document listing unavailable — this repository has not finished its first sync.",
+  "footer": "{count, plural, one {# document} other {# documents}} · {tokens, number} tokens total · last synced {when}",
+  "notListed": "{count} not listed",
+  "noMatch": "No document matches your filter.",
+  "usedByAgents": "Used by {count, plural, one {# agent} other {# agents}}",
+  "tokens": "{count, number} tokens",
+  "filterPlaceholder": "Filter documents…",
+  "attachAria": "{attached, select, true {Detach {name}} other {Attach {name}}}",
+  "previewAria": "Preview {name}",
+  "reorderAria": "Reorder {name} with Alt+Up or Alt+Down",
+  "reorderAnnounced": "{name} moved to position {position} of {total}",
+  "missing": "Missing from the working copy",
+  "overBudget": "This set exceeds the {budget, number}-token project-context budget.",
+  "orderHint": "Order matters — earlier documents appear earlier in the assembled ## Project context block. Toggle to attach.",
+  "dragDisabledHint": "Reordering is off while a filter is active.",
+  "attachedCount": "{attached} of {total} attached",
+  "inheritedHint": "Any agent using this skill inherits these documents.",
+  "tabLabel": "Context",
+  "editDisabled": "Not available yet"
 }

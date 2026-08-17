@@ -1,15 +1,19 @@
 /**
- * tokenizer adapter — token counter for the repo-map budget search (T3).
+ * tokenizer adapter — the single server-side deterministic token counter.
  *
- * The repo-map renderer (pipeline/repo-map.ts) binary-searches the largest set
- * of symbols that fits a token budget; that loop calls `count()` ≤ ~13 times.
+ * Originally built for the repo-map budget search (T3): the repo-map renderer
+ * (pipeline/repo-map.ts) binary-searches the largest set of symbols that fits
+ * a token budget; that loop calls `count()` ≤ ~13 times. Also used by
+ * modules/context for per-document and per-set token counts (Project
+ * Context) — the same counter, so a document's count is identical regardless
+ * of which agent or skill it is attached to.
  *
  * Default impl: js-tiktoken `cl100k_base` (pure-JS, no natives). The encoder is
  * lazy-initialised (loading the BPE ranks is the heavy part) and any failure
- * falls back to the `ceil(chars / 4)` heuristic — the renderer must never throw.
+ * falls back to the `ceil(chars / 4)` heuristic — callers must never throw.
  *
- * Scope: in-process, ONLY under modules/repo-intel. Swappable in tests via a
- * mock counter (ContainerOverrides.tokenizer).
+ * Scope: in-process, any server-side deterministic token count. Swappable in
+ * tests via a mock counter (ContainerOverrides.tokenizer).
  */
 import { getEncoding, type Tiktoken } from 'js-tiktoken';
 

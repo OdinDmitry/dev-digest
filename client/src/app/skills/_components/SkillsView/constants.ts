@@ -12,5 +12,5 @@ export const SKILL_TYPE_VALUES: readonly SkillType[] = [
 export const RAIL_WIDTH = 280;
 
 /** Detail-pane tabs, validated against `?tab=`. */
-export const VALID_TABS = ["config", "preview", "versions"] as const;
+export const VALID_TABS = ["config", "context", "preview", "versions"] as const;
 export type DetailTabKey = (typeof VALID_TABS)[number];

@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { Badge, EmptyState, Icon, Tabs } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import type { DetailTabKey } from "../SkillsView/constants";
+import { ContextAttachPanel } from "@/components/context-attach/ContextAttachPanel";
 import { skillTypeChip } from "../../../../lib/skill-type";
 import { ConfigTab } from "./_components/ConfigTab";
 import { PreviewTab } from "./_components/PreviewTab";
@@ -30,6 +31,11 @@ export function SkillDetail({
   onImport: () => void;
 }) {
   const t = useTranslations("skills");
+  // The Context tab's labelKey ("context.tabLabel") resolves under its own
+  // `context` namespace (client/messages/en/context.json), not `skills` —
+  // ContextAttachPanel is shared with the agent editor's Context tab and its
+  // copy lives in one place.
+  const tc = useTranslations("context");
 
   if (!skill) {
     return (
@@ -53,7 +59,11 @@ export function SkillDetail({
     );
   }
 
-  const tabs = TABS.map((tb) => ({ key: tb.key, label: t(tb.labelKey), icon: tb.icon }));
+  const tabs = TABS.map((tb) => ({
+    key: tb.key,
+    label: tb.key === "context" ? tc("tabLabel") : t(tb.labelKey),
+    icon: tb.icon,
+  }));
 
   return (
     <div style={s.root}>
@@ -72,6 +82,9 @@ export function SkillDetail({
         {tab === "preview" && <PreviewTab skill={skill} />}
         {tab === "versions" && <VersionsTab skill={skill} />}
         {tab === "config" && <ConfigTab skill={skill} />}
+        {tab === "context" && (
+          <ContextAttachPanel ownerKind="skill" ownerId={skill.id} hint={tc("inheritedHint")} />
+        )}
       </div>
     </div>
   );

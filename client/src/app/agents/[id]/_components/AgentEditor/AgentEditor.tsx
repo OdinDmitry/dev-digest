@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Tabs } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
+import { ContextAttachPanel } from "@/components/context-attach/ContextAttachPanel";
 import { ConfigTab } from "./_components/ConfigTab";
 import { SkillsTab } from "./_components/SkillsTab";
 import { TABS } from "./constants";
@@ -13,6 +14,7 @@ import { s } from "./styles";
 
 export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; onTab: (t: string) => void }) {
   const t = useTranslations("agents");
+  const tc = useTranslations("context");
   const tabs = TABS.map((tb) => ({ key: tb.key, label: t(tb.labelKey), icon: tb.icon }));
   return (
     <div style={s.wrap}>
@@ -20,7 +22,13 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
         <Tabs tabs={tabs} value={tab} onChange={onTab} pad="0 24px" />
       </div>
       <div style={s.body}>
-        {tab === "skills" ? <SkillsTab agent={agent} /> : <ConfigTab agent={agent} />}
+        {tab === "skills" ? (
+          <SkillsTab agent={agent} />
+        ) : tab === "context" ? (
+          <ContextAttachPanel ownerKind="agent" ownerId={agent.id} hint={tc("orderHint")} />
+        ) : (
+          <ConfigTab agent={agent} />
+        )}
       </div>
     </div>
   );

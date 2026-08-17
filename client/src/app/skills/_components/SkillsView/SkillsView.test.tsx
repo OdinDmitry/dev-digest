@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Skill, SkillListStats, SkillVersion } from "@devdigest/shared";
 import skillMessages from "../../../../../messages/en/skills.json";
 import shellMessages from "../../../../../messages/en/shell.json";
+// SkillDetail's Context tab (`ContextAttachPanel`) calls `useTranslations("context")`
+// unconditionally, even though this suite never selects that tab — without
+// this the `NextIntlClientProvider` below throws a MISSING_MESSAGE error to
+// stderr on every render (client/insights.md 2026-08-16).
+import contextMessages from "../../../../../messages/en/context.json";
 import { ToastProvider } from "../../../../lib/toast";
 
 const get = vi.fn();
@@ -76,7 +81,10 @@ function renderView() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ skills: skillMessages, shell: shellMessages }}>
+      <NextIntlClientProvider
+        locale="en"
+        messages={{ skills: skillMessages, shell: shellMessages, context: contextMessages }}
+      >
         <ToastProvider>
           <SkillsView />
         </ToastProvider>
