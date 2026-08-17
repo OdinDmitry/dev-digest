@@ -69,6 +69,27 @@ need to touch a file the plan didn't mention, make the change but call it
 out explicitly in your final report as a scope deviation — never expand
 scope silently.
 
+### A contract change that breaks an unrelated file is telling you something
+
+When a change to a shared contract makes some *other* file stop compiling — a
+test fixture, a hand-built object literal, a mock, a seed — **stop before you
+patch it.** The compiler is pointing at every place that constructs this shape
+by hand. Two questions have to be answered first, and they are not answered by
+adding the missing key:
+
+1. **Which production code reads this shape, and does it validate?** A
+   contract's `.default(…)`/optionality only takes effect where something calls
+   `.parse()`. If the read path casts instead, the default is decorative and
+   every record already stored keeps the old shape at runtime.
+2. **Is the broken file the only thing that had the old shape?** Fixtures are
+   written fresh; rows in a database, files on disk and payloads in flight are
+   not. Making the fixture compile can turn a loud failure into a silent one.
+
+Answer both by opening the read path — then either the fix is in scope (do it,
+report it as a scope deviation) or it is a plan gap (stop and report it, per
+Step 0). What you must not do is add the key, watch the suite go green, and
+record the compiler error as a lesson about types.
+
 **Tasks the plan marks `owner: test-writer` are not yours** — skip them and
 list them under "Handed to test-writer" in your report.
 

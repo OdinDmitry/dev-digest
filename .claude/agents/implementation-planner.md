@@ -95,6 +95,48 @@ placement, `drizzle-orm-patterns` / `postgresql-table-design` for schema,
 `zod` for contracts, `security` for auth and input handling. Apply only the
 ones that resolve a real question for this task.
 
+### Every claim about existing behaviour is cited or it is not made
+
+Constraints, Placement decisions and Open questions constantly assert things
+about code that already exists — "the read path parses", "no production code
+passes this", "this slot is unused". **Each such assertion carries a
+`path/file.ts:line` you got by opening that file in this session.** A rule
+quoted from a module's `insights.md` or `CLAUDE.md` is evidence about what
+someone once learned, never evidence about what the code does today: cite the
+insight *and* the line that still shows it holding.
+
+This is not pedantry about formatting. A plan that says "a missing key would
+make `.parse()` throw" when nothing on that path calls `.parse()` sends
+`implementer` to build a mitigation that cannot fire, and every reviewer
+downstream reads the false premise as established fact. If you cannot find the
+line, the claim becomes an Open question, not a Constraint.
+
+### Entry points & duplicate registries
+
+Before you write the file list, find the **other** places that enumerate the
+same keys. Adding an item to a list is rarely a one-file change in this repo:
+a tab lives in a `TABS` constant *and* in the route's `?tab=` whitelist, a
+route in the router *and* in the nav config, a variant in an enum *and* in the
+`switch` that renders it. `implementer` keeps edits scoped to the files you
+list, so a registry you miss is a registry that stays stale — and the symptom
+is usually silent (the control renders, the URL updates, the feature falls
+back to a default).
+
+Grep for the existing sibling keys by name — the strings, not the type —
+across the whole owning module, and for each hit decide one of two things:
+
+- add the file to the task that introduces the new item, or
+- add a task that **collapses the duplication** — derive the second list from
+  the first — so the next feature cannot reintroduce the bug.
+
+Prefer the second whenever the two lists are meant to be identical. A
+structural fix removes the failure mode; a file added to a task only fixes
+this one instance.
+
+Record the result in the plan under `## Entry points & duplicate registries`,
+including the greps that came back empty — "checked, nothing else enumerates
+these" is a finding a later reader needs.
+
 ## Step 4 — name the governing skill and the owner per step
 
 Every step states which project skill(s) govern it. The catalog is
@@ -119,6 +161,42 @@ placement decision and stated the exact file and layer.
 
 Do not leave a test implied by the traceability table alone with no task that
 produces it — that is the single most common way an AC ships unproven.
+
+### A check nobody in the chain can run is not verification
+
+`implementer`, `test-writer` and `plan-verifier` have `Read`, `Grep`, `Glob`,
+`Edit`/`Write` and `Bash`. **None of them can drive a browser or look at a
+screen.** So a Verification bullet that starts "run `./scripts/dev.sh`, open
+…, click …, confirm …" is an instruction to a human, and writing it as if it
+were an automated step is how an AC ends a run with nothing having checked it.
+
+Two rules follow:
+
+- Any such step is written `owner: human` inline, so the orchestrator reports
+  it as outstanding rather than as done.
+- **It may never be the only evidence for an `AC-N`.** If an AC's sole proof
+  is a manual step, the plan is not finished — bind it to something that runs.
+
+When the feature adds or changes a **UI entry point** — a tab, a route, a nav
+item, a mode switch — an `e2e/specs/NN-*.flow.json` task is **mandatory**, not
+optional; that package exists for exactly this and already has flows opening
+the agent editor's tabs to model on. Give the flow an assertion on copy that
+only the new surface renders. A `wait --url` on the query parameter is not
+enough: a broken tab whitelist still puts `?tab=x` in the URL while rendering
+the fallback, so the URL assertion passes on the broken build.
+
+### Regression fixtures for anything already persisted
+
+When a task adds a field to a contract or a column to something already stored,
+the test task must build its fixture in the **old** shape — the payload as it
+exists on disk today, without the new key — and assert the read path copes.
+Say so in the task, explicitly, naming the shape.
+
+The failure this prevents is specific and repeats: a `.default(...)` or a
+nullable column makes the new field *required* in the inferred type, every
+hand-built fixture is updated to satisfy the compiler, and the whole suite goes
+green over data none of it represents. A fixture that carries the new key
+cannot fail; only one that omits it proves anything.
 
 ## Step 5 — write the plan
 
@@ -145,6 +223,10 @@ Execution mode: single-agent | multi-agent (<n> tracks)
 
 ## Constraints
 - [from root/module CLAUDE.md, insights.md, do-not-touch lists, skills]
+
+## Entry points & duplicate registries
+- [every other place enumerating the same keys, with the task that covers it —
+  or "checked `<grep>`, nothing else enumerates these"]
 
 ## Affected modules & files
 - **server**: `path/to/file.ts` — ...
@@ -174,7 +256,9 @@ with disjoint file lists, then a final `### Integration` track.)
 ### Full (plan-verifier, once at the end)
 - [every command above, plus `pnpm test:integration --reporter=dot` when a
   `*.it.test.ts` file is involved]
-- [end-to-end check that proves the feature works]
+- [`./scripts/e2e.sh` whenever this plan touches a UI entry point]
+- [end-to-end check that proves the feature works] — owner: `human` when it
+  needs a browser; never the only evidence for an AC
 
 ## Explicit note
 Architecture and security review are out of scope for `implementer` and are
@@ -213,6 +297,18 @@ Verify against the file you wrote; fix and re-check anything that fails:
       the shared contract is frozen up front, and an integration step exists.
 - [ ] Every placement decision traces to a preloaded skill's rule, not to
       preference.
+- [ ] `## Entry points & duplicate registries` exists and is non-empty — every
+      other list enumerating the same keys is either in a task's file list or
+      collapsed by a task, and the greps that came back empty are recorded.
+- [ ] Every claim about existing behaviour in Constraints / Placement decisions
+      carries a `file.ts:line` opened this session; anything uncited moved to
+      Open questions.
+- [ ] A UI entry point is added or changed ⇒ there is an `e2e/specs/` task, and
+      its assertion is on rendered copy, not only on the URL.
+- [ ] A field was added to something already persisted ⇒ a test task builds the
+      fixture in the OLD shape, without the new key.
+- [ ] No `AC-N` has a manual/browser step as its only evidence; every such step
+      is marked `owner: human`.
 - [ ] Verification commands are copied from the modules' own `CLAUDE.md`, not
       invented, and carry `--reporter=dot`.
 - [ ] Out of scope is non-empty.

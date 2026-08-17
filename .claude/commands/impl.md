@@ -128,6 +128,21 @@ missing or unconvincing tests — then re-verify **once**. Still failing → sto
 and escalate. If it reports a gap in the *plan itself*, do not patch around it;
 that goes back to `implementation-planner`, by hand.
 
+**Manual steps in the Full block.** No agent in this chain can drive a browser,
+so a Verification bullet reading "run `./scripts/dev.sh`, open …, click …,
+confirm …" did not happen — whatever the verifier's report implies. Handle it
+explicitly:
+
+- If the plan touches a UI entry point and the repo has an e2e flow covering
+  it, run `./scripts/e2e.sh` yourself and report the real result. That is
+  automated evidence; a manual bullet is not.
+- Collect every remaining manual bullet verbatim into **Verification →
+  Not performed** in your report, one line each.
+- If any `AC-N`'s only evidence is one of those bullets, it is **uncovered**.
+  List it under Tests as uncovered and say so in plain words. Do not describe
+  the run as complete, and do not let "plan-verifier reported no gaps" stand in
+  for a check nobody ran.
+
 ## Phase 5 — report
 
 ```markdown
@@ -146,6 +161,7 @@ that goes back to `implementation-planner`, by hand.
 
 ## Verification
 - <command> — pass/fail
+- Not performed: <manual/browser bullet, verbatim> — needs a human
 - Gaps: none | <list>
 
 ## Left open
@@ -159,9 +175,10 @@ that goes back to `implementation-planner`, by hand.
 ```
 
 Report faithfully: a failed command is reported with its output, an escalated
-finding is named, and any `AC-N` that ended the run without a passing test is
-listed under Tests. Do not describe the run as complete while anything above is
-outstanding.
+finding is named, and any `AC-N` that ended the run without a passing test —
+including one whose only evidence was a manual step nobody ran — is listed
+under Tests as uncovered. Do not describe the run as complete while anything
+above is outstanding.
 
 ## Cost discipline
 

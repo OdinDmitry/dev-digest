@@ -116,8 +116,9 @@ shows the happy path. Your job is everything it does not show.
 
 If mockups were provided (paths under a `_design/` folder, or any path given in
 the request), open each one with `Read` first; they are the richest source for
-lenses 1–2 and 5–6. But the lenses are not *about* mockups: a `server`,
-`reviewer-core` or `mcp` feature with no design at all still gets lenses 1–4.
+lenses 1–2 and 6–8. But the lenses are not *about* mockups: a `server`,
+`reviewer-core` or `mcp` feature with no design at all still gets lenses 1–4,
+and lens 5 whenever it stores anything.
 
 **Lenses 1–4 — always, for every spec:**
 
@@ -135,13 +136,33 @@ lenses 1–2 and 5–6. But the lenses are not *about* mockups: a `server`,
    threshold or sort order that nobody has defined the rule for. This is the
    single most common source of a spec that cannot be tested.
 
-**Lenses 5–6 — whenever the feature has a user-facing surface** (skip with one
+**Lens 5 — whenever the feature persists anything, or reads anything already
+persisted** (skip with one line saying so if it genuinely does not):
+
+5. **Data that predates the feature.** Everything already stored was written
+   under the *old* shape. What does the system do when it reads a record
+   missing a field this feature introduces, or carrying a value this feature
+   no longer produces? Either an AC states the behaviour ("SHALL present it as
+   …", "SHALL treat the absent value as …") or Non-goals says plainly that
+   pre-existing records are out of scope and what that costs. Silence here is
+   the single most common way a shipped feature breaks data nobody touched:
+   every test fixture is written fresh, in the new shape, so nothing exercises
+   the old one.
+
+**Lenses 6–8 — whenever the feature has a user-facing surface** (skip with one
 line saying so if it genuinely has none):
 
-5. **UX gaps.** What happens *after* the primary action — where does the user
+6. **Reachability.** How does a user *get to* this surface — from where, by
+   what action? A surface no criterion names an entry point for is untestable
+   by construction: every criterion about what it shows passes while nothing
+   can open it. Write the entry point as its own AC ("WHEN the user selects X
+   from Y, the system SHALL present Z"), separately from the criteria about
+   what Z contains. This applies to a new tab, panel, page, dialog, drawer or
+   mode — anything the user must navigate to rather than already be looking at.
+7. **UX gaps.** What happens *after* the primary action — where does the user
    land, is the action reversible, how do they know it worked? Is there a dead
    end with no way back?
-6. **Accessibility.** Apply the preloaded `accessibility-requirements`
+8. **Accessibility.** Apply the preloaded `accessibility-requirements`
    guidance: keyboard path, focus management, accessible naming,
    colour-as-only-signal, announcements, forms and errors, motion, target
    size. Phrase findings as requirements, never as markup.
@@ -282,8 +303,14 @@ fails, fix it and check again:
 - [ ] Untrusted inputs names every foreign-text source, or says "none".
 - [ ] The traceability table covers every AC with no gaps.
 - [ ] Goals / Non-goals states at least one thing this feature will **not** do.
-- [ ] Lenses 1–4 from Step 3 are answered in the report; lenses 5–6 are either
-      answered or explicitly skipped as having no user-facing surface.
+- [ ] Lenses 1–4 from Step 3 are answered in the report; lens 5 is answered or
+      explicitly skipped as persisting nothing; lenses 6–8 are either answered
+      or explicitly skipped as having no user-facing surface.
+- [ ] If the feature adds a surface a user must navigate to, one AC names its
+      entry point (lens 6) — not only what the surface contains.
+- [ ] If the feature adds a field to something already persisted, either an AC
+      states what happens on records written before it, or Non-goals excludes
+      them explicitly (lens 5).
 - [ ] Every Step 3 finding exists somewhere in the **file** — as an AC, an edge
       case, a diagram element, a provenance row, or an open question.
 - [ ] Under 25 acceptance criteria and one user-visible capability, or the
@@ -318,6 +345,8 @@ Reply with:
 - Corner cases: …
 - Cross-module communication: …
 - Unspecified computation: …
+- Pre-existing data: …  (or: persists nothing)
+- Reachability: …       (or: no user-facing surface)
 - UX gaps: …            (or: no user-facing surface)
 - Accessibility: …      (or: no user-facing surface)
 
