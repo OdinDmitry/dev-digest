@@ -48,16 +48,21 @@ would otherwise flag as missing.
 conditional/mapped types, `as` assertions, `any`, or declaration merging. Do not attach it
 to every `.ts` file — it is a deep-typing skill, not a linter.
 
-**`migrations` needs no reviewer.** `server/src/db/migrations/` is do-not-touch per
-[server/CLAUDE.md](../../../server/CLAUDE.md). A changed file under it is an automatic
-CRITICAL (rule 2 in `severity.md`); no subagent, no skill reading. If the change is
-deliberate and coordinated, it is the author's job to say so — the gate still fires.
+**`migrations` needs no reviewer, but it does need three commands.** `server/src/db/migrations/`
+is do-not-touch per [server/CLAUDE.md](../../../server/CLAUDE.md) — no subagent, no skill
+reading. Run rule 2's checks in `severity.md` and report what they returned. A migration
+added by `pnpm db:generate` is the normal case and is **not** a finding; an existing
+migration modified or deleted is CRITICAL. Which one you are looking at is decided by the
+commands, not by the author's account of it and not by a plan task having asked for the
+migration — and the counts go in the report either way, so the reader can see the check ran.
 
 **`contracts` always pulls the vendor-sync check.** `server/src/vendor/shared/**` is the
 source of truth; `client/src/vendor/shared/**` is a manual copy (root
-[CLAUDE.md](../../../CLAUDE.md)). Whenever the domain is active, compare the two trees
-byte-for-byte and raise CRITICAL rule 3 on any divergence — this is a check to *run*, not a
-judgement to make by eye.
+[CLAUDE.md](../../../CLAUDE.md)). Whenever the domain is active, run rule 3's command in
+`severity.md` — this is a check to *run*, not a judgement to make by eye. It compares only
+the contract files this change touched against their counterparts; drift that was already
+there at the merge base is pre-existing debt, gets one line among the clean results, and is
+never CRITICAL on a PR that did not cause it.
 
 **`docs-config` gets no subagent.** Handle it in the main agent: confirm a changed workflow
 still has `paths:` filters covering the packages it tests, that a changed `package.json`

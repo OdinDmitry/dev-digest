@@ -39,20 +39,73 @@ promote it yourself.
    `server/src/platform/config.ts`. Secrets belong in `~/.devdigest/secrets.json` behind
    `SecretsProvider` — the single read chokepoint.
 
-2. **Hand-edited migration.** Any changed file under `server/src/db/migrations/`. Marked
-   do-not-touch in [server/CLAUDE.md](../../../server/CLAUDE.md); generated via
-   `pnpm db:generate`, never edited.
+2. **Hand-edited migration.** An **existing** file under `server/src/db/migrations/` is
+   modified, renamed or deleted, or `meta/_journal.json` is rewritten rather than appended
+   to. Marked do-not-touch in [server/CLAUDE.md](../../../server/CLAUDE.md).
+
+   A migration produced by `pnpm db:generate` is **not** this finding. The two are
+   distinguishable mechanically, so do not decide from the author's description or from the
+   fact that a plan asked for it: generation only ever *adds* an `NNNN_name.sql` and a
+   matching `meta/NNNN_snapshot.json`, and only ever *appends* to `meta/_journal.json`.
+   Rewriting a `.sql` that has already run against someone's database is what this rule
+   exists to catch. Verify with commands, never by eye:
+
+   ```bash
+   # a. an existing artifact modified, renamed or deleted (journal handled by b.)
+   git diff --name-status "$BASE" -- server/src/db/migrations \
+     | grep -E '^(M|D|R)' | grep -v '_journal\.json'
+   # b. journal rewritten instead of appended to
+   git diff "$BASE" -- server/src/db/migrations/meta/_journal.json \
+     | grep -E '^-' | grep -v '^---'
+   # c. a .sql hand-written rather than generated — no snapshot beside it
+   for f in server/src/db/migrations/*.sql; do
+     n="$(basename "$f" | cut -c1-4)"
+     [ -f "server/src/db/migrations/meta/${n}_snapshot.json" ] || echo "orphan: $f"
+   done
+   ```
+
+   Output from any of the three is the finding. All three silent means the migration was
+   generated: **no severity**, and the report states the counts among its clean results —
+   "N migration file(s) added, no existing file modified, journal append-only". Report it
+   either way, so a reader can see the check ran rather than inferring it from silence.
+
+   Note `a.` and `b.` use `git diff "$BASE"` without `...HEAD`, so they cover the working
+   tree as well as commits. A new migration is normally **untracked** and therefore invisible
+   to both — which is correct, since adding one is the legitimate case. That is also why the
+   old path-based trigger ("any changed file under the directory") fired on every schema PR:
+   it was reading presence, not shape. `c.` is what keeps a hand-written `.sql` from slipping
+   through on the same technicality.
 
 3. **Desynced contract copy.** `server/src/vendor/shared/**` changed without the identical
    change in `client/src/vendor/shared/**` (or vice versa). These are copies, not linked
    packages — the drift is silent and shows up as a runtime shape mismatch. Verify with a
-   command, never by eye:
+   command, never by eye — and scope it to the files **this change touched**, because a
+   whole-tree comparison reports the repository's standing debt as though the PR caused it:
 
    ```bash
-   diff -r server/src/vendor/shared client/src/vendor/shared
+   V="server/src/vendor/shared client/src/vendor/shared"
+   { git diff --name-only "$BASE" -- $V
+     git ls-files --others --exclude-standard -- $V   # a brand-new contract is untracked
+   } | sed -E 's#^(server|client)/src/vendor/shared/##' | sort -u \
+     | while read -r f; do
+         diff -q "server/src/vendor/shared/$f" "client/src/vendor/shared/$f"
+       done
    ```
 
-   Any output at all is the finding.
+   The `ls-files --others` line is load-bearing: a contract added by this change is untracked,
+   `git diff` does not list it, and without that line the loop runs zero times and reports a
+   clean result for the one file most likely to be desynced. Verify the loop actually iterated
+   before trusting its silence.
+
+   Any output is the finding: this change edited one copy of a contract and not the other.
+   No output — including when the PR touches neither tree, and the loop therefore runs zero
+   times — means the rule does not fire.
+
+   Pre-existing drift is a **separate matter and never CRITICAL here.** `diff -r` across the
+   two trees will often print something in a repository that has accumulated debt; that is
+   worth one line under the report's clean results ("N file(s) already diverged at the merge
+   base, untouched by this change — separate cleanup"), and nothing more. A gate that blocks
+   a PR for debt it did not create teaches the author to override the gate.
 
 4. **Inverted import direction** (`onion-architecture`):
    - `drizzle-orm` or `db/schema` imported in a `service.ts` or `routes.ts`

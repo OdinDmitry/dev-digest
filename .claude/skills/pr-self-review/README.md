@@ -30,8 +30,11 @@ a reviewer that can edit will start "fixing" things mid-review.
 **The CRITICAL list is closed.** Nine triggers in `severity.md`, no discretion to add a
 tenth mid-review. A blocking gate has to be predictable — the first time it blocks on
 something the author considers a matter of taste, they start looking for the bypass. Every
-trigger is either a documented repo invariant (do-not-touch migrations, vendor re-sync,
-secrets chokepoint) or something that provably breaks CI or production.
+trigger is either a documented repo invariant (an applied migration is immutable, vendor
+copies stay in sync, secrets go through the one chokepoint) or something that provably
+breaks CI or production. State each invariant as the property being protected, not as the
+directory it lives in — a trigger phrased as a path fires on every legitimate change to that
+path, and a gate that cries wolf on routine work is one the author learns to wave through.
 
 **Severity vocabulary borrowed, not invented.** `CRITICAL | WARNING | SUGGESTION` and the
 `bug | security | perf | style | test` categories come from
