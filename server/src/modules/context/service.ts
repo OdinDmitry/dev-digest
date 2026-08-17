@@ -1,11 +1,13 @@
 import PQueue from 'p-queue';
 import type {
   AssembledContextEntry,
+  AssembledRunContext,
   ContextAttachment,
   ContextAttachmentInput,
   ContextAttachmentSet,
   ContextDocument,
   ContextDocumentText,
+  ContextExclusion,
   ContextListing,
   ContextOwnerKind,
 } from '@devdigest/shared';
@@ -14,7 +16,7 @@ import type { AgentsRepository } from '../agents/repository.js';
 import type { RepoRepository, RepoRow } from '../repos/repository.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { PROJECT_CONTEXT_TOKEN_BUDGET, READ_CONCURRENCY, TOKEN_CACHE_MAX } from './constants.js';
-import { assembleEntries, folderOf, usageCounts } from './helpers.js';
+import { applyBudget, assembleEntries, folderOf, usageCounts } from './helpers.js';
 import type { ContextRepository } from './repository.js';
 import { listMarkdown, readDocument } from './scan.js';
 
@@ -181,6 +183,66 @@ export class ContextService {
       agentId,
     );
     return assembleEntries(skillGroups, ownEntries);
+  }
+
+  /**
+   * Resolve one agent's project context for one run against `prRepoId` (the
+   * PR's repo): start from the assembled entries (skill-inherited first, own
+   * second, de-duplicated — `assembleForAgent`), exclude anything from a
+   * different repo (`other_repo`), read every remaining document's full text
+   * from that repo's working copy and exclude what comes back absent
+   * (`absent`), then apply the token budget (`over_budget`). The returned
+   * `excluded` list follows the assembled order throughout, regardless of
+   * which stage excluded an entry.
+   */
+  async assembleForRun(
+    workspaceId: string,
+    agentId: string,
+    prRepoId: string,
+  ): Promise<AssembledRunContext> {
+    const entries = await this.assembleForAgent(workspaceId, agentId);
+    const repo = await this.requireRepo(workspaceId, prRepoId);
+    const root = repo.clonePath;
+
+    type Staged =
+      | { path: string; kind: 'present'; text: string }
+      | { path: string; kind: 'excluded'; reason: ContextExclusion['reason'] };
+
+    const staged: Staged[] = [];
+    for (const entry of entries) {
+      if (entry.repo_id !== prRepoId) {
+        staged.push({ path: entry.path, kind: 'excluded', reason: 'other_repo' });
+        continue;
+      }
+      const text = root ? await readDocument(root, entry.path) : null;
+      if (text == null) {
+        staged.push({ path: entry.path, kind: 'excluded', reason: 'absent' });
+      } else {
+        staged.push({ path: entry.path, kind: 'present', text });
+      }
+    }
+
+    // Budget applies only over the survivors so far, in assembled order.
+    const survivors = staged
+      .filter((s): s is Extract<Staged, { kind: 'present' }> => s.kind === 'present')
+      .map((s) => ({ path: s.path, text: s.text, tokens: this.deps.tokenizer.count(s.text) }));
+    const { excluded: overBudgetExclusions } = applyBudget(survivors, PROJECT_CONTEXT_TOKEN_BUDGET);
+    const overBudgetPaths = new Set(overBudgetExclusions.map((e) => e.path));
+
+    // Merge back, preserving the assembled order across every exclusion reason.
+    const documents: { path: string; text: string }[] = [];
+    const excluded: ContextExclusion[] = [];
+    for (const s of staged) {
+      if (s.kind === 'excluded') {
+        excluded.push({ path: s.path, reason: s.reason });
+      } else if (overBudgetPaths.has(s.path)) {
+        excluded.push({ path: s.path, reason: 'over_budget' });
+      } else {
+        documents.push({ path: s.path, text: s.text });
+      }
+    }
+
+    return { documents, excluded };
   }
 
   private async requireRepo(workspaceId: string, repoId: string): Promise<RepoRow> {

@@ -225,6 +225,41 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('applies the RunTrace contract defaults to a legacy trace document on read', async () => {
+    // Regression: `run_traces.trace` is jsonb written once and read back for
+    // years. A row persisted before `specs_excluded` (or `cost_usd`) existed
+    // has no such key, and `getRunTrace` used to cast instead of parse — so the
+    // contract's `.default(...)` never fired and the trace drawer threw on
+    // `trace.specs_excluded.length`. Insert the document RAW, exactly as an old
+    // row looks; going through `RunTrace.parse()` here would defeat the test.
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const [run] = await pg.handle.db
+      .insert(t.agentRuns)
+      .values({ workspaceId, prId: pr.id, status: 'done', model: 'gpt-4.1' })
+      .returning();
+    await pg.handle.db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: {
+        config: { agent: 'Security', model: 'gpt-4.1' },
+        stats: { duration_ms: 1000, tokens_in: 10, tokens_out: 5, findings: 0, grounding: '0/0 passed' },
+        prompt_assembly: { system: 'sys', user: 'usr' },
+        tool_calls: [],
+        raw_output: '{}',
+        memory_pulled: [],
+        specs_read: [],
+        log: [],
+      },
+    });
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${run!.id}/trace` })).json();
+    expect(trace.specs_excluded).toEqual([]);
+    expect(trace.stats.cost_usd).toBeNull();
+    expect(trace.config.source).toBe('local');
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

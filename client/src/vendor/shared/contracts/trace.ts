@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ContextExclusion } from './context.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -41,9 +42,10 @@ export const PromptAssembly = z.object({
   skills: z.string().nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
-  /** Callers-of-changed-symbols digest (repo-intel); null when absent. */
+  /** Callers-of-changed-symbols digest (T1.3); null when absent. */
   callers: z.string().nullish(),
-  /** Repo skeleton / map (repo-intel); null when absent. */
+  /** Repo skeleton / map (T3); null when absent. Enables per-slot token
+      attribution in the run trace. */
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
@@ -86,6 +88,11 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  // .default([]) rather than a bare array: run_traces documents persisted
+  // before this field existed have no `specs_excluded` key at all, so a
+  // missing key must parse cleanly to [] instead of RunTrace.parse() throwing
+  // (server/insights.md 2026-07-30 — same reasoning as RunStats.cost_usd).
+  specs_excluded: z.array(ContextExclusion).default([]),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;

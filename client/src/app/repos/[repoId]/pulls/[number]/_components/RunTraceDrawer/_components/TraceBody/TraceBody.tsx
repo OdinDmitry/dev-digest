@@ -19,6 +19,11 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  // `useRunTrace` casts the payload rather than parsing it, and the trace is a
+  // jsonb document older than this field — the server applies the contract's
+  // `.default([])` on read (run.repo.ts `getRunTrace`), but a document that
+  // fails to parse there is passed through raw. Never index it unguarded.
+  const specsExcluded = trace.specs_excluded ?? [];
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -44,6 +49,19 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
                 trace.specs_read.map((sp, i) => (
                   <span key={i} className="mono" style={s.spec}>
                     {sp}
+                  </span>
+                ))
+              )}
+            </div>
+          </Row>
+          <Row label={t("trace.config.specsExcluded")}>
+            <div style={s.specsWrap}>
+              {specsExcluded.length === 0 ? (
+                <span style={s.specsNone}>{t("trace.config.none")}</span>
+              ) : (
+                specsExcluded.map((ex, i) => (
+                  <span key={i} className="mono" style={s.spec}>
+                    {ex.path} — {t(`trace.excludedReason.${ex.reason}`)}
                   </span>
                 ))
               )}

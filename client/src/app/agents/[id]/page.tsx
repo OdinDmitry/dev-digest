@@ -9,10 +9,15 @@ import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/
 import { AppShell } from "../../../components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
 import { AgentEditor } from "./_components/AgentEditor";
+import { TABS } from "./_components/AgentEditor/constants";
 import { useAgents, useAgent, useAgentStats, useUpdateAgent } from "../../../lib/hooks/agents";
 import { ApiError } from "../../../lib/api";
 
-const VALID_TABS = ["config", "skills"];
+/* Derived from the editor's own TABS — never re-listed here. A hand-kept second
+   list silently rejects `?tab=` for any tab added to the editor, which is how
+   the Context tab shipped unreachable (the tab rendered, the guard fell back to
+   "config" on every click). */
+const VALID_TABS: readonly string[] = TABS.map((tb) => tb.key);
 
 export default function AgentEditorPage() {
   const params = useParams<{ id: string }>();

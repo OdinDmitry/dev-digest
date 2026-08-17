@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
+import { RunTrace as RunTraceSchema } from '@devdigest/shared';
 
 /** One agent's run rollup for the agents list. */
 export interface AgentRunStatsRow {
@@ -233,5 +234,15 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
 
 export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
   const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
-  return row ? (row.trace as RunTrace) : undefined;
+  if (!row) return undefined;
+  // A run_traces document is jsonb written once and read back for years, so it
+  // outlives the contract: a row persisted before a field existed has no such
+  // key at all. Parsing HERE is what makes RunTrace's `.default(...)` fields
+  // (`stats.cost_usd`, `specs_excluded`, `config.source`) actually materialise
+  // on read — with a bare cast they stay `undefined` and the trace drawer
+  // throws on `trace.specs_excluded.length`. Fall back to the raw document if
+  // some older row fails for an unrelated reason: a degraded trace is better
+  // than a 500 on a run that renders today.
+  const parsed = RunTraceSchema.safeParse(row.trace);
+  return parsed.success ? parsed.data : (row.trace as RunTrace);
 }

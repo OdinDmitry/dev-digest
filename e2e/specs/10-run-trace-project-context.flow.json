@@ -1,0 +1,21 @@
+{
+  "name": "Run trace drawer surfaces the injected project context (attached specs block + excluded reasons)",
+  "description": "From PR #482, open the Agent runs tab, open the seeded project-context run's trace drawer (server/src/db/seed.ts U9 — an older, non-newest agent_runs/run_traces pair so it never disturbs flow 04's default-open review accordion), expand Prompt assembly, and confirm the segment is labelled 'Project context — attached specs (untrusted)' (AC-26). Expand that segment and confirm a distinctive line of the seeded document's text ('specs/security-baseline.md') is visible (AC-27). Read-only seeded data (no model call).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "General Reviewer"], "label": "the seeded project-context run's Timeline row is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open run trace & logs"], "label": "open its trace drawer" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "trace drawer's Trace tab renders" },
+    { "cmd": ["find", "text", "Prompt assembly", "click"], "label": "expand the Prompt assembly section" },
+    { "cmd": ["wait", "--text", "Project context — attached specs (untrusted)"], "label": "the project-context segment is labelled attached + untrusted (AC-26)" },
+    { "cmd": ["find", "text", "Project context — attached specs (untrusted)", "click"], "label": "expand the project-context segment" },
+    { "cmd": ["wait", "--text", "authentication and rate-limiting check before touching customer data"], "label": "a distinctive line of the seeded document's text is visible (AC-27)" }
+  ]
+}

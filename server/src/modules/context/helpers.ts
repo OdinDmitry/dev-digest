@@ -1,4 +1,4 @@
-import type { AssembledContextEntry, ContextOwnerKind } from '@devdigest/shared';
+import type { AssembledContextEntry, ContextExclusion, ContextOwnerKind } from '@devdigest/shared';
 import type { AgentSkillGroup, OwnerContextEntry } from './repository.js';
 
 /**
@@ -68,4 +68,41 @@ export function assembleEntries(
   pushAll(ownEntries, 'agent');
 
   return result;
+}
+
+export interface BudgetableEntry {
+  path: string;
+  text: string;
+  tokens: number;
+}
+
+export interface BudgetResult {
+  kept: { path: string; text: string }[];
+  excluded: ContextExclusion[];
+}
+
+/**
+ * Walk `entries` in order, accumulating token counts. The first entry that
+ * would take the running total over `budget`, and EVERY entry after it
+ * (regardless of that later entry's own size), is excluded with reason
+ * `over_budget` — no entry is ever included in part (AC-24). An entry exactly
+ * at the budget is kept.
+ */
+export function applyBudget(entries: BudgetableEntry[], budget: number): BudgetResult {
+  const kept: { path: string; text: string }[] = [];
+  const excluded: ContextExclusion[] = [];
+  let total = 0;
+  let overBudget = false;
+
+  for (const entry of entries) {
+    if (!overBudget && total + entry.tokens <= budget) {
+      kept.push({ path: entry.path, text: entry.text });
+      total += entry.tokens;
+    } else {
+      overBudget = true;
+      excluded.push({ path: entry.path, reason: 'over_budget' });
+    }
+  }
+
+  return { kept, excluded };
 }

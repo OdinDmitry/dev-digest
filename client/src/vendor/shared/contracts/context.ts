@@ -78,3 +78,23 @@ export const AssembledContextEntry = z.object({
   via: ContextOwnerKind,
 });
 export type AssembledContextEntry = z.infer<typeof AssembledContextEntry>;
+
+// ---- Run-time resolution (plan 2: assembling + injecting a run's context) ----
+export const ContextExclusionReason = z.enum(['absent', 'other_repo', 'over_budget']);
+export type ContextExclusionReason = z.infer<typeof ContextExclusionReason>;
+
+/** One attachment that did not make it into a run's assembled context, with why. */
+export const ContextExclusion = z.object({
+  path: z.string(),
+  reason: ContextExclusionReason,
+});
+export type ContextExclusion = z.infer<typeof ContextExclusion>;
+
+/** The result of resolving one agent's project context for one run: the
+ *  documents that survived (full text, ready to inject) and every excluded
+ *  attachment with its reason. */
+export const AssembledRunContext = z.object({
+  documents: z.array(z.object({ path: z.string(), text: z.string() })),
+  excluded: z.array(ContextExclusion),
+});
+export type AssembledRunContext = z.infer<typeof AssembledRunContext>;

@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { ContextExclusion, Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
@@ -11,6 +11,8 @@ import { loadDiff } from './diff-loader.js';
 import { IntentService } from '../intent/service.js';
 import { PrIntentRepository } from '../intent/repository.js';
 import { RepoRepository } from '../repos/repository.js';
+import { ContextService } from '../context/service.js';
+import { ContextRepository } from '../context/repository.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -220,6 +222,13 @@ export class ReviewRunExecutor {
       // repo-intel toggle: skills are authored config, not derived context.
       const skillBodies = await this.buildSkillBodies(agent.id, runLog);
 
+      // Project context (this plan) — the agent's assembled attachments
+      // (own + skill-inherited), resolved to full text. Independent of the
+      // repo-intel toggle, same reasoning as skills: authored config, not
+      // derived repo-intel enrichment.
+      const { documents: projectContextDocs, excluded: projectContextExcluded } =
+        await this.buildProjectContext(workspaceId, agent.id, pull.repoId, runLog);
+
       const task = taskLine(pull) + rankNote;
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
@@ -243,6 +252,10 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Project context — resolved attachments in assembled order. Omitted
+        // when empty so an agent with no context stays byte-identical to
+        // today's prompt (AC-25).
+        ...(projectContextDocs.length > 0 ? { specs: projectContextDocs } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -331,7 +344,8 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: projectContextDocs.map((d) => d.path),
+        specs_excluded: projectContextExcluded,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -447,6 +461,43 @@ export class ReviewRunExecutor {
   }
 
   /**
+   * Resolve an agent's project context (this plan) — its own attachments plus
+   * those inherited from the skills it uses, ordered and de-duplicated, read
+   * from the PR's repo working copy and budget-truncated. Constructs
+   * `ContextService` with explicit deps, mirroring how `IntentService` is
+   * constructed in the constructor above (no `Container` argument passed
+   * into the service). Best-effort like the repo-intel builders above: an
+   * enrichment must never fail a run, so any failure degrades to an empty
+   * context.
+   */
+  private async buildProjectContext(
+    workspaceId: string,
+    agentId: string,
+    prRepoId: string,
+    runLog: RunLogger,
+  ): Promise<{ documents: { path: string; text: string }[]; excluded: ContextExclusion[] }> {
+    try {
+      const contextService = new ContextService({
+        repo: new ContextRepository(this.container.db),
+        agents: this.agents,
+        tokenizer: this.container.tokenizer,
+        cloneDir: this.container.config.cloneDir,
+        repos: new RepoRepository(this.container.db),
+      });
+      const { documents, excluded } = await contextService.assembleForRun(
+        workspaceId,
+        agentId,
+        prRepoId,
+      );
+      runLog.info(`project context: ${documents.length} document(s) attached, ${excluded.length} excluded`);
+      return { documents, excluded };
+    } catch (err) {
+      runLog.info(`project context: build failed — ${(err as Error).message}`);
+      return { documents: [], excluded: [] };
+    }
+  }
+
+  /**
    * T3 — fetch the cached repo skeleton for the prompt's `## Repo skeleton`
    * slot. Returns `undefined` when repo-intel is off / the repo isn't indexed
    * (the facade degrades), so the prompt stays identical to the pre-T3 shape.
@@ -517,6 +568,7 @@ export class ReviewRunExecutor {
       raw_output: '',
       memory_pulled: [],
       specs_read: [],
+      specs_excluded: [],
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }

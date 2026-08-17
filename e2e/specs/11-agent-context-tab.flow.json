@@ -1,0 +1,14 @@
+{
+  "name": "Agent editor Context tab renders the project-context attach panel",
+  "description": "Opens the seeded Test Quality Reviewer and switches to its Context tab. Guards the reachability of the tab, not just its existence: the tab button and the ?tab= whitelist on /agents/[id]/page.tsx are two separate places, and when they disagreed the button rendered, the URL changed to tab=context, and the editor silently fell back to Config. So asserting the URL alone is not enough — the last step asserts on copy that only ContextAttachPanel renders.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the seeded L02 agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Context"], "label": "switch to the Context tab (the Tabs kit renders plain buttons, not role=tab)" },
+    { "cmd": ["wait", "--url", "tab=context"], "label": "tab state is in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "documents and attachments settle" },
+    { "cmd": ["wait", "--text", "Toggle to attach"], "label": "the attach panel's order hint is visible — Config renders no such copy" }
+  ]
+}

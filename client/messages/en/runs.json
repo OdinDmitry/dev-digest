@@ -33,6 +33,7 @@
       "provider": "Provider",
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
+      "specsExcluded": "Project context — excluded",
       "items": "{count, plural, one {# item} other {# items}}",
       "none": "none"
     },
@@ -42,12 +43,17 @@
       "cost": "COST",
       "findings": "FINDINGS"
     },
+    "excludedReason": {
+      "absent": "absent from working copy",
+      "other_repo": "different repository",
+      "over_budget": "over token budget"
+    },
     "prompt": {
       "system": "System",
       "skills": "Skills (dynamic)",
       "memory": "Memory (dynamic)",
       "repoMap": "Repo skeleton — repo-intel (dynamic)",
-      "specs": "Project context (dynamic)",
+      "specs": "Project context — attached specs (untrusted)",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
       "user": "User / diff (dynamic)",
       "copy": "Copy",

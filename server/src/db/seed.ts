@@ -3,6 +3,8 @@ import { pathToFileURL } from 'node:url';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
+import { RunTrace } from '@devdigest/shared';
+import { wrapUntrusted } from '@devdigest/reviewer-core';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
@@ -339,6 +341,133 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         .values(skillIds.map((skillId, order) => ({ agentId: agent.id, skillId, order })))
         .onConflictDoNothing();
     }
+  }
+
+  // ---- Project context — run injection: seed one agent_runs + run_traces
+  // pair on PR #482 carrying a project-context prompt-assembly block, so the
+  // e2e trace-drawer flow (10-run-trace-project-context) has a deterministic
+  // run to open. See docs/plans/2026-08-16-project-context-run-injection.md
+  // (U9). NEW ROWS ONLY — the sample review/findings seeded above are never
+  // touched. Idempotent via a fixed row id + onConflictDoNothing, the same
+  // shape as the fixed-target upserts above. `ranAt` is pinned in the past
+  // (rather than left at `defaultNow()`) so this run can never become PR
+  // #482's NEWEST — FindingsTab/RunHistory both sort newest-first, and a
+  // newer row here would change what flows 02/04/05 (which land on this PR's
+  // Overview/Agent-runs tabs) see.
+  const [seedRunAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+
+  if (seedRunAgent) {
+    const SEED_RUN_ID = 'a0000000-0000-4000-8000-000000000482';
+    const seedRunRanAt = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3); // 3 days ago
+
+    await db
+      .insert(t.agentRuns)
+      .values({
+        id: SEED_RUN_ID,
+        workspaceId,
+        agentId: seedRunAgent.id,
+        prId: pr!.id,
+        ranAt: seedRunRanAt,
+        provider: seedRunAgent.provider,
+        model: seedRunAgent.model,
+        durationMs: 14200,
+        tokensIn: 6420,
+        tokensOut: 512,
+        costUsd: 0.0087,
+        status: 'done',
+        error: null,
+        source: 'local',
+        findingsCount: 0,
+        grounding: '0/0 passed',
+        score: 100,
+        blockers: 0,
+        warningCount: 0,
+        suggestionCount: 0,
+      })
+      .onConflictDoNothing();
+
+    // Two attached documents (skill-inherited-or-own is irrelevant to the
+    // seed — the run-time resolver already tested that ordering elsewhere)
+    // plus one excluded-for-budget entry, so the trace drawer's Configuration
+    // section has something to list under "excluded".
+    const specsDocs = [
+      {
+        path: 'specs/security-baseline.md',
+        text:
+          '# Security baseline\n\n' +
+          'All new endpoints must apply an authentication and rate-limiting check before ' +
+          'touching customer data. Secrets must never be logged or committed to the repo.',
+      },
+      {
+        path: 'specs/public-api.md',
+        text:
+          '# Public API guidelines\n\n' +
+          'Public endpoints are unauthenticated by default — treat every input as hostile ' +
+          'and enforce a per-IP rate limit on every handler.',
+      },
+    ];
+    // Built through the SAME wrapUntrusted() the run-time resolver uses (U3),
+    // so the seeded trace is byte-shape-identical to a real run's, not a
+    // hand-rolled approximation of it.
+    const specsBlock = wrapUntrusted(
+      'project-context',
+      specsDocs.map((d) => `### ${d.path}\n${d.text}`).join('\n\n'),
+    );
+    const user =
+      "Review PR #482 'Add rate limiting to public API endpoints'\n\n" +
+      `## Project context\n${specsBlock}\n\n` +
+      '## Diff to review\n<untrusted source="diff">\n@@ -1,3 +1,9 @@\n+ratelimiter\n</untrusted>';
+
+    const trace = RunTrace.parse({
+      config: {
+        agent: seedRunAgent.name,
+        version: String(seedRunAgent.version),
+        provider: seedRunAgent.provider,
+        model: seedRunAgent.model,
+        pr: 482,
+        source: 'local',
+      },
+      stats: {
+        duration_ms: 14200,
+        tokens_in: 6420,
+        tokens_out: 512,
+        cost_usd: 0.0087,
+        findings: 0,
+        grounding: '0/0 passed',
+      },
+      prompt_assembly: {
+        system: seedRunAgent.systemPrompt,
+        skills: null,
+        memory: null,
+        specs: specsBlock,
+        callers: null,
+        repo_map: null,
+        pr_description: null,
+        user,
+      },
+      tool_calls: [{ tool: 'review_file', args: 'all files', meta: 'single-pass', ms: 14200 }],
+      raw_output: '{"verdict":"approve","summary":"Clean — no findings.","score":100,"findings":[]}',
+      memory_pulled: [],
+      specs_read: specsDocs.map((d) => d.path),
+      specs_excluded: [{ path: 'docs/architecture.md', reason: 'over_budget' }],
+      log: [
+        {
+          t: '00.00',
+          kind: 'info',
+          msg: `Starting review with agent "${seedRunAgent.name}" (${seedRunAgent.provider}/${seedRunAgent.model})`,
+        },
+        { t: '00.10', kind: 'info', msg: 'project context: 2 document(s) attached, 1 excluded' },
+        { t: '14.20', kind: 'result', msg: 'Persisted review with 0 finding(s)' },
+      ],
+    });
+
+    await db
+      .insert(t.runTraces)
+      .values({ runId: SEED_RUN_ID, trace })
+      .onConflictDoNothing();
   }
 
   return { workspaceId, userId };

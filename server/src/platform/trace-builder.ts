@@ -1,4 +1,5 @@
 import type {
+  ContextExclusion,
   MemoryPulled,
   PromptAssembly,
   RunLogLine,
@@ -12,9 +13,9 @@ import { RunTrace as RunTraceSchema } from '@devdigest/shared';
  * A5 — shared run-trace builder. A2's single-agent reviewer and A5's
  * multi-agent / built-in-detector runs all assemble the SAME single-document
  * RunTrace through this helper, so the enriched shape (full stats +
- * prompt_assembly + tool_calls + memory_pulled + specs_read + raw_output +
- * full log) is consistent and Zod-validated before it is persisted as ONE
- * document in `run_traces`.
+ * prompt_assembly + tool_calls + memory_pulled + specs_read + specs_excluded
+ * + raw_output + full log) is consistent and Zod-validated before it is
+ * persisted as ONE document in `run_traces`.
  */
 export interface BuildTraceInput {
   config: {
@@ -31,6 +32,7 @@ export interface BuildTraceInput {
   rawOutput: string;
   memoryPulled: MemoryPulled[];
   specsRead: string[];
+  specsExcluded: ContextExclusion[];
   log: RunLogLine[];
 }
 
@@ -50,6 +52,7 @@ export function buildRunTrace(input: BuildTraceInput): RunTrace {
     raw_output: input.rawOutput,
     memory_pulled: input.memoryPulled,
     specs_read: input.specsRead,
+    specs_excluded: input.specsExcluded,
     log: input.log,
   };
   // Validate so a malformed trace fails loudly at write-time, not read-time.

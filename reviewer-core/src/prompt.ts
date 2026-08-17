@@ -6,6 +6,11 @@ import type { ChatMessage, Intent, PromptAssembly } from '@devdigest/shared';
  * ALL external content (diff, PR body, code, community skills, specs) is
  * UNTRUSTED DATA, never instructions. We wrap it in clearly-delimited blocks
  * and add a system rule that content inside delimiters is data only.
+ *
+ * `PromptParts.specs` is `{ path, text }[]` — resolved project-context
+ * documents (own + skill-inherited attachments), rendered as ONE
+ * `<untrusted source="project-context">` block with each document's path
+ * stated before its full text, never one block per document.
  */
 
 // The ONE shared, trusted defense. assemblePrompt appends it to every agent's
@@ -62,8 +67,14 @@ export interface PromptParts {
   skills?: string[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
-  /** Project-context spec chunks (untrusted content). */
-  specs?: string[];
+  /**
+   * Project context: resolved documents attached to the agent (own +
+   * skill-inherited), each with its full text as read from the repository's
+   * working copy (untrusted content). Rendered as ONE delimited
+   * `<untrusted source="project-context">` block, path stated before text —
+   * never one block per document.
+   */
+  specs?: { path: string; text: string }[];
   /**
    * Repo skeleton / map (T3): top-ranked symbols by signature, token-budgeted.
    * Untrusted (derived from repo code) — delimiter-wrapped. Rendered before
@@ -138,7 +149,10 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       : undefined;
   const specsBlock =
     parts.specs && parts.specs.length > 0
-      ? parts.specs.map((s, i) => wrapUntrusted(`spec-${i}`, s)).join('\n\n')
+      ? wrapUntrusted(
+          'project-context',
+          parts.specs.map((d) => `### ${d.path}\n${d.text}`).join('\n\n'),
+        )
       : undefined;
 
   const prDescription =
