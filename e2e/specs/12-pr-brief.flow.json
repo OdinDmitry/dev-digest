@@ -12,10 +12,12 @@
     { "cmd": ["wait", "--text", "Adds token-bucket rate limiting to the public API endpoints."], "label": "AC-1: the seeded brief's distinctive 'what' statement renders above everything else on the Overview tab" },
     { "cmd": ["wait", "--text", "61"], "label": "AC-4: the same PR score renders again on the brief card" },
     { "cmd": ["wait", "--text", "RISK AREAS"], "label": "the intent card's risk areas subsection is present" },
-    { "cmd": ["find", "role", "button", "click", "--name", "Expand explanation for risk: Hardcoded Stripe secret key"], "label": "expand the seeded high-severity risk row (may be below the fold)" },
+    { "cmd": ["scrollintoview", "button[aria-label='Expand explanation for risk: Hardcoded Stripe secret key']"], "label": "bring the risk expand control into view (BriefCard + Intent sit above it; clicks do not scroll)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Expand explanation for risk: Hardcoded Stripe secret key"], "label": "expand the seeded high-severity risk row" },
     { "cmd": ["wait", "--text", "A live Stripe secret key is committed in plaintext in the rate-limit configuration."], "label": "AC-22/AC-23: the risk's explanation renders once expanded from the keyboard-reachable control" },
     { "cmd": ["wait", "--text", "REVIEW FOCUS — READ THESE FIRST"], "label": "the review focus section is present, below the intent card" },
-    { "cmd": ["find", "role", "button", "click", "--name", "Go to src/middleware/ratelimit.ts in Files changed"], "label": "activate the seeded review-focus item's file reference (may be below the fold)" },
+    { "cmd": ["scrollintoview", "button[aria-label='Go to src/middleware/ratelimit.ts in Files changed']"], "label": "bring the review-focus file reference into view" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Go to src/middleware/ratelimit.ts in Files changed"], "label": "activate the seeded review-focus item's file reference" },
     { "cmd": ["wait", "--url", "tab=diff"], "label": "AC-25: the URL switches to the Files changed tab" },
     { "cmd": ["wait", "--text", "src/middleware/ratelimit.ts"], "label": "AC-25: copy only the Files changed view renders (the Overview tab, including its risk-row/review-focus references, is unmounted once tab=diff is active) confirms the referenced file is shown, not just the URL" }
   ]

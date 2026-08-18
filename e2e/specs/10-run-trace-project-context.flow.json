@@ -13,6 +13,7 @@
     { "cmd": ["wait", "--text", "General Reviewer"], "label": "the seeded project-context run's Timeline row is visible" },
     { "cmd": ["find", "role", "button", "click", "--name", "Open run trace & logs"], "label": "open its trace drawer" },
     { "cmd": ["wait", "--text", "Configuration"], "label": "trace drawer's Trace tab renders" },
+    { "cmd": ["find", "text", "Configuration", "click"], "label": "collapse Configuration (it opens by default and pushes Prompt assembly below the fold; clicks do not scroll the drawer)" },
     { "cmd": ["find", "text", "Prompt assembly", "click"], "label": "expand the Prompt assembly section" },
     { "cmd": ["wait", "--text", "Project context — attached specs (untrusted)"], "label": "the project-context segment is labelled attached + untrusted (AC-26)" },
     { "cmd": ["find", "text", "Project context — attached specs (untrusted)", "click"], "label": "expand the project-context segment" },
