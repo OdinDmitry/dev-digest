@@ -46,9 +46,18 @@ jobs:
         with:
           version: 10
 
+      # 24, not 22 like the other workflows: every agent-browser release since
+      # 0.28.0 declares `engines.node >= 24.0.0`. Under Node 22, a bare
+      # `npm i -g agent-browser` (below) silently resolves to the last
+      # Node-22-compatible build (0.27.0) instead of current — and that build
+      # has a real bug where `find <locator> click` on an element outside the
+      # viewport exits 0 without actually clicking it, instead of scrolling it
+      # into view first. That silently broke flows 10 and 12, which click a
+      # collapsed section/row that starts below the fold. Confirmed by
+      # reproducing the exact same click against 0.27.0 vs 0.33+ head to head.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       # --- Postgres (pgvector) via the repo's compose file ---
       - name: Start Postgres
