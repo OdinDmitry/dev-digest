@@ -15,5 +15,41 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "fileRefAria": "Go to {ref} in Files changed",
+  "card": {
+    "title": "PR BRIEF",
+    "regenerateAria": "Regenerate the PR brief",
+    "generating": "Generating the PR brief…",
+    "unavailable": "The PR brief could not be generated.",
+    "unavailableIntentAbsent": "Waiting on the PR's intent — reopen this PR to try again.",
+    "unavailableInputBudget": "This pull request is too large to summarize.",
+    "findingsCount": "{count} findings",
+    "blockers": " · {count} blockers",
+    "riskLevel": "{level} risk",
+    "prScore": "PR SCORE",
+    "noScore": "No score yet",
+    "verdict": {
+      "requestChanges": "Request changes",
+      "approve": "Approve",
+      "comment": "Comment"
+    }
+  },
+  "risks": {
+    "title": "RISK AREAS",
+    "empty": "No risk areas were identified.",
+    "recalculate": "Recalculate",
+    "recalculateAria": "Recalculate risk areas",
+    "expandAria": "Expand explanation for risk: {title}",
+    "collapseAria": "Collapse explanation for risk: {title}",
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    }
+  },
+  "focus": {
+    "title": "REVIEW FOCUS — READ THESE FIRST",
+    "empty": "No starting point was identified."
   }
 }

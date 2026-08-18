@@ -1,0 +1,22 @@
+{
+  "name": "PR brief card, risk areas and review focus render the seeded brief, and a review-focus reference jumps to Files changed",
+  "description": "From PR #482, confirm the seeded PR brief (T20, seeded for head SHA a1b2c3d4e5f6) renders above the list, alongside the PR score, then confirm the intent card's RISK AREAS subsection and the REVIEW FOCUS section both render the same stored brief, and that activating a review-focus file reference switches to the Files changed tab positioned at that file. Model-free: T20 pre-seeds pr_brief for this PR's current head commit, so neither BriefCard's nor IntentCard's auto-start ever fires a generation. Read-only seeded data (acme/payments-api, PR #482). Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "61"], "label": "the seeded PR's score renders in the list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Adds token-bucket rate limiting to the public API endpoints."], "label": "AC-1: the seeded brief's distinctive 'what' statement renders above everything else on the Overview tab" },
+    { "cmd": ["wait", "--text", "61"], "label": "AC-4: the same PR score renders again on the brief card" },
+    { "cmd": ["wait", "--text", "RISK AREAS"], "label": "the intent card's risk areas subsection is present" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Expand explanation for risk: Hardcoded Stripe secret key"], "label": "expand the seeded high-severity risk row (may be below the fold)" },
+    { "cmd": ["wait", "--text", "A live Stripe secret key is committed in plaintext in the rate-limit configuration."], "label": "AC-22/AC-23: the risk's explanation renders once expanded from the keyboard-reachable control" },
+    { "cmd": ["wait", "--text", "REVIEW FOCUS — READ THESE FIRST"], "label": "the review focus section is present, below the intent card" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Go to src/middleware/ratelimit.ts in Files changed"], "label": "activate the seeded review-focus item's file reference (may be below the fold)" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "AC-25: the URL switches to the Files changed tab" },
+    { "cmd": ["wait", "--text", "src/middleware/ratelimit.ts"], "label": "AC-25: copy only the Files changed view renders (the Overview tab, including its risk-row/review-focus references, is unmounted once tab=diff is active) confirms the referenced file is shown, not just the URL" }
+  ]
+}

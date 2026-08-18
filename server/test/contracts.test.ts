@@ -15,6 +15,7 @@ import {
   Settings,
   Repo,
   PrDetail,
+  BriefRecord,
 } from '@devdigest/shared';
 
 /**
@@ -216,5 +217,54 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('SPEC-02: PR brief contract', () => {
+  it('parses a stored brief document whose references omit start_line, end_line and endpoint', () => {
+    // A legacy-shaped stored document: every reference object carries ONLY
+    // `path` — `start_line`, `end_line` and `endpoint` are ABSENT keys, not
+    // `null`. Built as a raw object literal cast to `unknown`, never routed
+    // through `BriefRecord.parse()` first — a fixture constructed via
+    // `.parse()` would already have the defaults filled in and this test
+    // could never fail (`client/insights.md`, Recurring Errors 2026-08-17).
+    const legacyRow: unknown = {
+      pr_id: 'pr-1',
+      head_sha: 'a1b2c3d4e5f6',
+      what: 'Adds token-bucket rate limiting to the public API endpoints.',
+      why: 'Unauthenticated clients could call the public endpoints with no request throttling.',
+      risk_level: 'high',
+      risks: [
+        {
+          kind: 'security',
+          title: 'Hardcoded secret key',
+          explanation: 'A live secret key is committed in plaintext.',
+          severity: 'high',
+          // No `start_line`, `end_line` or `endpoint` keys at all.
+          refs: [{ path: 'src/config.ts' }],
+        },
+      ],
+      review_focus: [
+        {
+          // Same omission on the review-focus side.
+          refs: [{ path: 'src/middleware/ratelimit.ts' }],
+          reason: 'Verify the limiter resets correctly per client and cannot be bypassed.',
+        },
+      ],
+    };
+
+    const parsed = BriefRecord.parse(legacyRow);
+
+    const riskRef = parsed.risks[0]!.refs[0]!;
+    expect(riskRef.path).toBe('src/config.ts');
+    expect(riskRef.start_line).toBeNull();
+    expect(riskRef.end_line).toBeNull();
+    expect(riskRef.endpoint).toBeNull();
+
+    const focusRef = parsed.review_focus[0]!.refs[0]!;
+    expect(focusRef.path).toBe('src/middleware/ratelimit.ts');
+    expect(focusRef.start_line).toBeNull();
+    expect(focusRef.end_line).toBeNull();
+    expect(focusRef.endpoint).toBeNull();
   });
 });

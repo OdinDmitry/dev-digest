@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
-import { RunTrace } from '@devdigest/shared';
+import { RunTrace, type BriefDoc } from '@devdigest/shared';
 import { wrapUntrusted } from '@devdigest/reviewer-core';
 import {
   GENERAL_REVIEWER_PROMPT,
@@ -216,6 +216,73 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         inScope: ['public API rate limiting', 'request throttling middleware', 'public endpoint configuration'],
         outOfScope: ['authentication/authorization changes', 'internal/admin API endpoints', 'billing or quota changes'],
       },
+    });
+
+  // ---- SPEC-02: seed a pr_brief row for PR #482 against its seeded head SHA ----
+  // Idempotent (upsert on the pr_id PK) — and REQUIRED so opening the seeded
+  // PR's Overview tab never fires an auto-generate POST /pulls/:id/brief (no
+  // stored brief for the CURRENT head SHA = 'absent' = the card's
+  // once-per-mount auto-start would fire). Mirrors the pr_intent seed
+  // immediately above — keeps e2e flows 02/04/05/12 model-free.
+  const seededHeadSha = 'a1b2c3d4e5f6';
+  const briefDoc: BriefDoc = {
+    what: 'Adds token-bucket rate limiting to the public API endpoints.',
+    why:
+      'Unauthenticated clients could call the public endpoints with no request throttling, ' +
+      'risking abuse and cost overrun.',
+    risk_level: 'high',
+    risks: [
+      {
+        kind: 'security',
+        title: 'Hardcoded Stripe secret key',
+        explanation:
+          'A live Stripe secret key is committed in plaintext in the rate-limit configuration.',
+        severity: 'high',
+        refs: [{ path: 'src/config.ts', start_line: 12, end_line: 12, endpoint: null }],
+      },
+      {
+        kind: 'performance',
+        title: 'N+1 query under the new limiter',
+        explanation:
+          'The user-list endpoint issues one query per user once the rate limiter wraps it, ' +
+          'multiplying DB load under bursty traffic.',
+        severity: 'medium',
+        refs: [{ path: 'src/api/users.ts', start_line: null, end_line: null, endpoint: null }],
+      },
+    ],
+    review_focus: [
+      {
+        refs: [
+          { path: 'src/middleware/ratelimit.ts', start_line: null, end_line: null, endpoint: null },
+        ],
+        reason:
+          'Verify the token-bucket algorithm resets correctly per client and cannot be bypassed ' +
+          'by header spoofing.',
+      },
+      {
+        refs: [{ path: 'src/config.ts', start_line: null, end_line: null, endpoint: null }],
+        reason:
+          'Confirm no secret material is committed and the rate-limit thresholds are sourced ' +
+          'from configuration, not hardcoded.',
+      },
+      {
+        // Same path referenced twice within one item — demonstrates the
+        // duplicate-reference collapse in the UI (mockup 6).
+        refs: [
+          { path: 'src/api/public/webhooks.ts', start_line: null, end_line: null, endpoint: null },
+          { path: 'src/api/public/webhooks.ts', start_line: null, end_line: null, endpoint: null },
+        ],
+        reason: 'Check the webhook handler applies the same limiter as the other public endpoints.',
+      },
+    ],
+  };
+  const briefJson = { ...briefDoc, pr_id: pr!.id, head_sha: seededHeadSha };
+  await db
+    .insert(t.prBrief)
+    .values({ prId: pr!.id, headSha: seededHeadSha, json: briefJson })
+    .onConflictDoUpdate({
+      target: t.prBrief.prId,
+      set: { headSha: seededHeadSha, json: briefJson, createdAt: new Date() },
     });
 
   // ---- built-in agents (the three starter presets) ----

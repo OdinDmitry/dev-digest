@@ -19,6 +19,21 @@ export interface SeverityCounts {
   suggestion: number;
 }
 
+/**
+ * First-seen-per-PR pick from a newest-first review list — the exact rule
+ * the PR list uses for its `score` column (`pulls/routes.ts`), extracted so
+ * `BriefRepository.runSummary` uses the SAME rule instead of a second,
+ * independently-drifting copy (AC-4 then holds by construction). Pure: rows
+ * must already be ordered newest-first by the caller's own query.
+ */
+export function pickLatestReviewPerPr<T extends { prId: string }>(rows: T[]): Map<string, T> {
+  const latest = new Map<string, T>();
+  for (const row of rows) {
+    if (!latest.has(row.prId)) latest.set(row.prId, row);
+  }
+  return latest;
+}
+
 /** Tally finding severities (CRITICAL / WARNING / SUGGESTION) for one review. */
 export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
   const c: SeverityCounts = { critical: 0, warning: 0, suggestion: 0 };

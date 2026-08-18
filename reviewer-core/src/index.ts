@@ -57,3 +57,11 @@ export {
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
 export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+
+// PR brief (SPEC-02): prompt assembly, grounding, the AC-2 post-condition,
+// and the single structured call — mirrors the review engine's own shape.
+export { assembleBriefPrompt, type BriefInput } from './brief/prompt.js';
+export { groundBrief, type GroundingSets } from './brief/grounding.js';
+export { enforceNotTitle } from './brief/helpers.js';
+export { generateBrief, type BriefOutcome } from './brief/run.js';
+export { RawBrief } from './brief/schema.js';

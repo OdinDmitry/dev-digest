@@ -7,7 +7,7 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus, rollupSeverities } from './status.js';
+import { deriveReviewStatus, pickLatestReviewPerPr, rollupSeverities } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -142,11 +142,11 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         : [];
 
     // Rows are newest-first → first seen per PR is the single latest review
-    // overall (used for `score` only).
-    const latestReviewByPr = new Map<string, { score: number | null }>();
-    for (const rv of reviewRows) {
-      if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
-    }
+    // overall (used for `score` only). `pickLatestReviewPerPr` (status.ts) is
+    // the same rule `BriefRepository.runSummary` uses for the brief card's
+    // run summary (T15) — one extraction, not two independently-drifting
+    // copies.
+    const latestReviewByPr = pickLatestReviewPerPr(reviewRows);
 
     // First seen per (PR, agent) is that agent's latest review — a null
     // agentId (deleted agent / no agent) is its own bucket via the reviewId,

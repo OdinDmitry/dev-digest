@@ -1,13 +1,22 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { SectionLabel, Skeleton, Button } from "@devdigest/ui";
 import { usePrIntent, useComputeIntent, useRecomputeIntent } from "../../../../../../../lib/hooks/intent";
+import { usePrBrief, useRegenerateBrief } from "@/lib/hooks/brief";
 import { ApiError } from "../../../../../../../lib/api";
+import { sortRisks } from "./helpers";
+import { RiskRow } from "./RiskRow";
 import { s } from "./styles";
 
 interface IntentCardProps {
   prId: string | null;
+  /** Switches to the Files-changed tab and scrolls to this file's card —
+   *  every risk-area file reference goes through here, mirroring BlastTab's
+   *  `onJumpToFile` (client/insights.md 2026-08-05: state lives in page.tsx,
+   *  the ancestor that outlives both this tab and the Files-changed tab). */
+  onJumpToFile: (path: string) => void;
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -22,10 +31,31 @@ function errorMessage(err: unknown, fallback: string): string {
  * can never fan out into repeated model calls). A "Recompute" button is the
  * manual "the PR changed" escape hatch.
  */
-export function IntentCard({ prId }: IntentCardProps) {
+export function IntentCard({ prId, onJumpToFile }: IntentCardProps) {
+  const t = useTranslations("brief");
   const { data, isLoading, error } = usePrIntent(prId);
   const computeMutation = useComputeIntent();
   const recomputeMutation = useRecomputeIntent();
+
+  // RISK AREAS subsection (SPEC-02, mockups 3-5) reads the SAME brief the
+  // Overview tab's BriefCard reads (`["pr-brief", prId]` — one shared
+  // TanStack Query cache entry, no second fetch) and shares its regenerate
+  // mutation's endpoint: BriefCard's icon control and this subsection's
+  // "Recalculate" control are two entry points into the same rebuild, not
+  // two different ones.
+  const { data: briefEnvelope, isLoading: briefLoading } = usePrBrief(prId);
+  const regenerateMutation = useRegenerateBrief();
+  const [expandedRisks, setExpandedRisks] = React.useState<ReadonlySet<string>>(new Set());
+  const toggleRisk = (key: string) =>
+    setExpandedRisks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const risks = sortRisks(
+    briefEnvelope?.status === "ready" ? (briefEnvelope.brief?.risks ?? []) : [],
+  );
 
   // Once-per-PR-per-mount guard, keyed on prId so navigating to a different
   // PR resets it — a refetch/re-render of this component must never trigger
@@ -129,6 +159,44 @@ export function IntentCard({ prId }: IntentCardProps) {
             </div>
           </>
         )}
+
+        <hr style={s.divider} />
+        <div>
+          <SectionLabel icon="AlertTriangle">{t("risks.title")}</SectionLabel>
+          {briefLoading ? (
+            <Skeleton height={40} />
+          ) : risks.length === 0 ? (
+            <span style={s.risksEmpty}>{t("risks.empty")}</span>
+          ) : (
+            <div style={s.risksList}>
+              {risks.map((risk, i) => {
+                const key = `${risk.title}-${i}`;
+                return (
+                  <RiskRow
+                    key={key}
+                    risk={risk}
+                    expanded={expandedRisks.has(key)}
+                    onToggle={() => toggleRisk(key)}
+                    onJumpToFile={onJumpToFile}
+                    t={t}
+                  />
+                );
+              })}
+            </div>
+          )}
+          <div style={s.recalculateRow}>
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="RefreshCw"
+              loading={regenerateMutation.isPending}
+              onClick={() => prId && regenerateMutation.mutate(prId)}
+              aria-label={t("risks.recalculateAria")}
+            >
+              {t("risks.recalculate")}
+            </Button>
+          </div>
+        </div>
       </div>
     </section>
   );

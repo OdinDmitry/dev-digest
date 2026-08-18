@@ -245,6 +245,57 @@ export class ContextService {
     return { documents, excluded };
   }
 
+  /**
+   * The brief's (SPEC-02) project-context input: the union of what the
+   * WORKSPACE'S ENABLED AGENTS carry for this repo — directly and through
+   * their skills — not every attachment row in the workspace. Lists enabled
+   * agents (`agents.listEnabled`), orders them `name ASC, id ASC` (a second,
+   * unique tiebreaker — an unordered/non-unique sort returns a different row
+   * order per query, `server/insights.md` 2026-08-04), and for EACH calls the
+   * EXISTING `assembleForAgent` (never modified — it is shared with the
+   * shipped SPEC-01 run-injection path; changing it here would change that
+   * behaviour too). Concatenates in agent order, de-duplicates by path
+   * (keeping the first occurrence), drops entries from a different repo, then
+   * reads each survivor's full text and skips anything that comes back
+   * `null`. Adds no new scanner, no new cache, no new repository query.
+   *
+   * Two consequences are DELIBERATE, not bugs: a document attached only to a
+   * skill no agent uses is unreachable here (SPEC-01 line 318 — usage count
+   * zero, never injected into any run, so never into a brief either); a
+   * DISABLED agent's attachments are excluded, even though SPEC-01's usage
+   * count deliberately counts disabled owners — that count answers "who
+   * carries this document", the brief asks "what context reviews this PR".
+   */
+  async assembleForRepo(workspaceId: string, repoId: string): Promise<{ path: string; text: string }[]> {
+    const repo = await this.requireRepo(workspaceId, repoId);
+    const agents = await this.deps.agents.listEnabled(workspaceId);
+    const ordered = [...agents].sort((a, b) => {
+      if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+
+    const seen = new Set<string>();
+    const survivors: { path: string; repo_id: string }[] = [];
+    for (const agent of ordered) {
+      const entries = await this.assembleForAgent(workspaceId, agent.id);
+      for (const entry of entries) {
+        if (seen.has(entry.path)) continue;
+        seen.add(entry.path);
+        survivors.push({ path: entry.path, repo_id: entry.repo_id });
+      }
+    }
+
+    const root = repo.clonePath;
+    const documents: { path: string; text: string }[] = [];
+    for (const s of survivors) {
+      if (s.repo_id !== repoId) continue;
+      const text = root ? await readDocument(root, s.path) : null;
+      if (text == null) continue;
+      documents.push({ path: s.path, text });
+    }
+    return documents;
+  }
+
   private async requireRepo(workspaceId: string, repoId: string): Promise<RepoRow> {
     const repo = await this.deps.repos.getById(workspaceId, repoId);
     if (!repo) throw new NotFoundError('Repo not found');

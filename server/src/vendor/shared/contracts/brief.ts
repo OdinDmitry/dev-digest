@@ -126,3 +126,81 @@ export const PrBrief = z.object({
   history: PrHistory,
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+// ---- SPEC-02: the generated PR brief ----------------------------------
+
+/** A reference the brief may point at. `path` is repository-relative and MUST
+ *  be present in the pull request's changed files (grounded server-side).
+ *  `endpoint`, when non-null, is an endpoint from the blast radius. */
+export const BriefFileRef = z.object({
+  path: z.string(),
+  start_line: z.number().int().nullable().default(null),
+  end_line: z.number().int().nullable().default(null),
+  endpoint: z.string().nullable().default(null),
+});
+export type BriefFileRef = z.infer<typeof BriefFileRef>;
+
+export const BriefRisk = z.object({
+  kind: z.string(),
+  title: z.string(),
+  explanation: z.string(),
+  severity: RiskSeverity,
+  refs: z.array(BriefFileRef).min(1),
+});
+export type BriefRisk = z.infer<typeof BriefRisk>;
+
+export const BriefFocusItem = z.object({
+  refs: z.array(BriefFileRef).min(1),
+  reason: z.string(),
+});
+export type BriefFocusItem = z.infer<typeof BriefFocusItem>;
+
+/** The stored document (`pr_brief.json`). Replaced whole, never patched. */
+export const BriefDoc = z.object({
+  what: z.string(),
+  why: z.string(),
+  risk_level: RiskSeverity,
+  risks: z.array(BriefRisk),
+  review_focus: z.array(BriefFocusItem),
+});
+export type BriefDoc = z.infer<typeof BriefDoc>;
+
+/** The stored document plus the identity it was produced for. */
+export const BriefRecord = BriefDoc.extend({
+  pr_id: z.string(),
+  head_sha: z.string(),
+});
+export type BriefRecord = z.infer<typeof BriefRecord>;
+
+/** `ready` — `brief` is present and matches the PR's current head commit.
+ *  `absent` — nothing stored for this head commit; the client starts one
+ *  generation. `unavailable` — this generation cannot produce a brief
+ *  (input over budget after every optional drop, AC-18). */
+export const BriefStatus = z.enum(['ready', 'absent', 'unavailable']);
+export type BriefStatus = z.infer<typeof BriefStatus>;
+
+export const BriefEnvelope = z.object({
+  status: BriefStatus,
+  brief: BriefRecord.nullable(),
+  /**
+   * Machine-readable cause when `status === 'unavailable'`, else null.
+   * Exactly two values are produced: `'intent_absent'` (no persisted intent
+   * yet — retryable, nothing stored, T17) and `'input_budget'` (over budget
+   * with every optional input already dropped, T13/T17). Both mean "no model
+   * call was made". Kept as a plain string, not an enum, so adding a cause
+   * later is not a breaking contract change.
+   */
+  reason: z.string().nullable(),
+});
+export type BriefEnvelope = z.infer<typeof BriefEnvelope>;
+
+/** The most recent completed review on a pull request, as one unit — either
+ *  all four values or `null` for the whole object (AC-5). NOT `RunSummary`:
+ *  that name is taken by contracts/trace.ts. */
+export const PrRunSummary = z.object({
+  verdict: z.string(),
+  findings_count: z.number().int(),
+  blockers_count: z.number().int(),
+  score: z.number().int().nullable(),
+});
+export type PrRunSummary = z.infer<typeof PrRunSummary>;
