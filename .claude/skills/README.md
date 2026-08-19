@@ -22,7 +22,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Pre-PR gate — routes the diff to the skills that govern it; a CRITICAL finding blocks `gh pr create` |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads/writes per-module `insights.md` — non-obvious discoveries, append-only |
-| [workflow-retro](workflow-retro/SKILL.md) | Shared | Post-run retro of a multi-agent workflow — token split, launch order, duplicated context, re-work; writes `docs/retro/` |
+| [workflow-retro](workflow-retro/SKILL.md) | Shared | Manual-only post-run retro of a multi-agent workflow — quick (in-context) or `deep` (reads disk transcripts); appends a row to `docs/retro/ledger.md` |
 
 ## What Are Skills?
 
