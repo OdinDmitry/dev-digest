@@ -73,21 +73,24 @@ against it are worse than none.
 
 ## Phase 2 — review and cover, in parallel
 
-Spawn both in a single message. They are safe together: `architecture-reviewer`
-is read-only, and `test-writer` touches only test files, so their writes cannot
-collide.
+Spawn all three in a single message. They are safe together:
+`architecture-reviewer` and `security-reviewer` are both read-only, and
+`test-writer` touches only test files, so their writes cannot collide.
 
 - **`architecture-reviewer`** — scoped to this run's diff
   (`git diff <baseline-sha>...` plus untracked files), not the whole repo.
+- **`security-reviewer`** — same diff scope. It is a repo-agent, not the
+  `/security-review` skill or the DB-stored in-product reviewer — a
+  Claude Code subagent producing plain-text findings.
 - **`test-writer`** — the plan path, plus the design paths if the feature has a
   UI. Its work list is the plan's `## Traceability` table: every `AC-N` row
   names the test that proves it, and every one of those that does not exist yet
   is a test it writes.
 
-## Phase 3 — one fix loop, fed by both reports
+## Phase 3 — one fix loop, fed by all reports
 
-Two kinds of signal arrive, and they go into the **same** `implementer` fix-mode
-call — one call per iteration, not one per report:
+Three kinds of signal arrive, and they go into the **same** `implementer`
+fix-mode call — one call per iteration, not one per report:
 
 1. **Architecture findings**, by grade:
    - **CRITICAL** — must be fixed.
@@ -95,12 +98,18 @@ call — one call per iteration, not one per report:
      specified; then report it instead.
    - **SUGGESTION** — never fix here. Pass it to the final report untouched.
      Acting on suggestions is how a fix loop turns into an unplanned refactor.
-2. **Implementation bugs `test-writer` found.** It stops rather than editing
+2. **Security findings**, by the same three-grade rule as architecture
+   findings above — `security-reviewer` uses this repo's identical
+   `CRITICAL`/`WARNING`/`SUGGESTION` scale, not the preloaded skill's
+   four-level one, precisely so this gate applies unchanged. A `CRITICAL`
+   security finding is never left for the final report; it blocks the same
+   way an unfixed architecture `CRITICAL` does.
+3. **Implementation bugs `test-writer` found.** It stops rather than editing
    implementation code, so a report saying a test fails because the code is
    wrong is a real defect — send it to the fixer with the failing test named.
 
-Send both to `implementer` in **fix mode**: the plan path, the findings, and
-the instruction to fix exactly those and nothing else.
+Send all three to `implementer` in **fix mode**: the plan path, the findings,
+and the instruction to fix exactly those and nothing else.
 
 After the fixes:
 
@@ -159,6 +168,10 @@ explicitly:
 - <n> findings — <n> fixed over <n> iteration(s), <n> escalated
 - Unfixed: <grade> <title> — <file:line> — why it was left
 
+## Security review
+- <n> findings — <n> fixed over <n> iteration(s), <n> escalated
+- Unfixed: <grade> <title> — <file:line> — why it was left
+
 ## Verification
 - <command> — pass/fail
 - Not performed: <manual/browser bullet, verbatim> — needs a human
@@ -169,7 +182,8 @@ explicitly:
 - Anything escalated, and what it is waiting on
 
 ## Not done by this command
-- Security review — run `/security-review`
+- A deeper, out-of-diff security audit — `security-reviewer` only sees this
+  run's diff; run the `/security-review` skill for a broader pass
 - Docs — run `doc-writer` if the feature needs more than a CLAUDE.md line
 - `pr-self-review` before `gh pr create` (a hook enforces this)
 ```
@@ -182,8 +196,8 @@ above is outstanding.
 
 ## Cost discipline
 
-Eleven subagent calls is a normal upper bound for a mid-sized plan (1–3
-implementers, 2 in the review/cover phase, 1–2 fixes, 1–2 re-checks, 1–2
+Twelve subagent calls is a normal upper bound for a mid-sized plan (1–3
+implementers, 3 in the review/cover phase, 1–2 fixes, 1–2 re-checks, 1–2
 verifies). If you find yourself about to exceed that, stop and ask instead — a
 chain that keeps looping is a signal about the plan, not a reason to keep
 spending.
