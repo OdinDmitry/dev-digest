@@ -42,13 +42,22 @@ export const cases: SkillCase[] = [
     name: "full report follows the required 5-section structure with a Mermaid graph",
     kind: "quality",
     prompt: `Run a dependency check on this repo. I want the full report: graph, sizes, prioritized findings, recommendations.\n\n${REPO_DATA}`,
-    grounding: ["```mermaid", "flowchart"],
+    // Gate on the fenced block only. "flowchart" used to be required here too, but the skill's own
+    // Step 2 template writes `graph LR` — so a model that followed SKILL.md exactly failed the gate
+    // and the judge never even ran. A grounding string must never contradict the artifact under
+    // test; which mermaid dialect is used is a judgement call, so it belongs to the judge, not to a
+    // deterministic substring gate.
+    grounding: ["```mermaid"],
     practices: [
-      "the report has a section named 'Scope' listing which packages (client, server, reviewer-core, e2e) were analyzed",
-      "the report includes a Mermaid diagram (a fenced ```mermaid code block using flowchart) showing dependency relationships between packages",
-      "the report has a section with a size breakdown table showing dependencies and their installed size, not just a vague size statement",
-      "the report has a 'Findings & Priorities' section (or equivalently named) that groups findings under explicit severity tiers such as P0, P1, P2, or Info — not an unranked bullet list",
-      "the report ends with a Summary section giving 3-5 concrete, actionable takeaways ordered by priority",
+      // Section names come from SKILL.md's "Report structure" block, which says "use this exact
+      // section order": Diagram / Per-Package Breakdown / Cross-Package Findings / Recommendations.
+      // These practices used to demand a 'Scope' section, a 'Findings & Priorities' section with
+      // P0/P1/P2 tiers, and a closing 'Summary' — none of which the skill defines. A model that
+      // followed SKILL.md perfectly was graded as failing three of six practices.
+      "the report includes a Mermaid diagram (a fenced ```mermaid code block) showing dependency relationships between packages",
+      "the report has a per-package breakdown with a table showing dependencies and their installed size, not just a vague size statement",
+      "the report has a cross-package findings section covering version drift, mixed package managers, and the no-workspace-root tradeoff",
+      "the report ends with an ordered list of recommendations, most actionable first, rather than an unordered wall of advice",
       "every finding names a specific package, dependency, or file rather than giving generic advice like 'consider optimizing dependencies'",
     ],
     threshold: 0.7,
@@ -60,18 +69,22 @@ export const cases: SkillCase[] = [
     prompt: `This repo isn't a monorepo — server, client, reviewer-core, and e2e share code via TypeScript path aliases, not workspace:* packages. Analyze our dependencies, including how these packages depend on each other internally.\n\n${REPO_DATA}`,
     practices: [
       "the answer explicitly distinguishes internal cross-package dependencies (the @shared/review-types alias and the direct relative import into reviewer-core/src/pipeline.js) from external npm package dependencies, rather than treating them as the same kind of dependency",
-      "the answer flags server/src/services/review-service.ts importing reviewer-core/src/pipeline.js by relative path instead of through reviewer-core's public entry point as a P0-tier or otherwise explicitly called-out issue",
+      // "as a P0-tier" dropped: the skill defines no severity tiers, only an actionability order.
+      "the answer explicitly calls out server/src/services/review-service.ts importing reviewer-core/src/pipeline.js by relative path instead of through reviewer-core's public entry point",
       "the answer does not claim these packages are linked via workspace:* or pnpm workspaces, since the project explicitly is not a monorepo",
     ],
     threshold: 0.6,
     maxTurns: 10,
   },
   {
-    name: "severity tiers are used consistently and recommendations are specific, not vague",
+    name: "recommendations are ordered by actionability and specific, not vague",
     kind: "quality",
     prompt: `We suspect some npm dependencies in server/ and client/ are unused or duplicated across packages with different versions. Check our dependencies and tell me what to prioritize fixing first.\n\n${REPO_DATA}`,
     practices: [
-      "findings are explicitly labeled with one of the defined severity tiers (P0, P1, P2, or Info) rather than left unranked",
+      // Was "labeled with one of the defined severity tiers (P0, P1, P2, or Info)" — the skill
+      // defines no tiers. Its Step 5 orders by actionability (drift → package manager → heavy
+      // deps), so that ordering is what a graded answer must actually show.
+      "the recommendations are presented in a deliberate priority order (version drift first, then package-manager/tooling consistency, then heavy dependencies) rather than an unranked list",
       "the three different zod versions across server, client, and reviewer-core are called out explicitly as version drift",
       "moment being declared in server/package.json but never imported anywhere under server/src is called out explicitly as an unused dependency",
       "each recommendation names a specific package name and package.json/file location (e.g. server/package.json, moment, zod) rather than a generic suggestion",

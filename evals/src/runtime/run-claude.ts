@@ -111,7 +111,13 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
             }
             if (block.name === "Read") {
               const fp = input.file_path ?? input.path;
-              if (fp) reads.push(fp);
+              // Normalize separators: the SDK reports OS-native paths, so on Windows a read comes
+              // back as "C:\...\reviewer-core\insights.md" while every case asserts the POSIX form
+              // ("reviewer-core/insights.md"). The substring match in dsl/case.ts and activated()
+              // then fails on a file the model demonstrably DID read — the whole workflow tier is
+              // unpassable on Windows. Normalizing here fixes trace, contrast and activation at
+              // once, since all three read from this array.
+              if (fp) reads.push(String(fp).replace(/\\/g, "/"));
             }
             if (block.name === "Skill") {
               const s = input.skill ?? input.command;

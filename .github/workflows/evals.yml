@@ -63,6 +63,10 @@ jobs:
 
       - run: pnpm typecheck
 
+      # The model-free unit tests (stats math, judge JSON repair). Deterministic and
+      # free, so they belong in the blocking gate rather than the paid tier.
+      - run: pnpm vitest run src/
+
       # Structure/frontmatter/links of every .claude/skills/*/SKILL.md. Exits 1 only
       # on a real error; "no eval file yet" is a warning by design (course policy).
       - run: pnpm eval:quality
