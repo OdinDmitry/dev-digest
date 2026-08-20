@@ -1,0 +1,199 @@
+# Harness evals — the self-check for .claude/skills, .claude/agents and CLAUDE.md.
+# The routing table ("which change needs which eval") lives in the root CLAUDE.md;
+# the engine and every command are documented in evals/README.md.
+#
+# Two jobs, deliberately asymmetric:
+#  - quality: the static SKILL.md gate. No model, no network, no secrets — so it
+#    also runs on fork PRs, and it BLOCKS merge. Missing eval coverage is only a
+#    warning there, so this stays green until a skill is actually malformed.
+#  - model-evals: the three model-backed tiers. They cost money and fluctuate
+#    between runs, so they only PUBLISH A REPORT (continue-on-error) — a blocking
+#    threshold gets added per tier once its case set is proven stable.
+name: evals
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.claude/skills/**'
+      - '.claude/agents/**'
+      - 'CLAUDE.md'
+      - 'evals/**'
+      - '.github/workflows/evals.yml'
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - '.claude/agents/**'
+      - 'CLAUDE.md'
+      - 'evals/**'
+      - '.github/workflows/evals.yml'
+
+# Read-only. The model job takes untrusted PR code as input, so it gets no write
+# scope at all — the report goes to the step summary, which needs no permission.
+# Commenting on PRs would need pull-requests:write; that stays a separate decision.
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality gate (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: evals
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      # Structure/frontmatter/links of every .claude/skills/*/SKILL.md. Exits 1 only
+      # on a real error; "no eval file yet" is a warning by design (course policy).
+      - run: pnpm eval:quality
+
+  model-evals:
+    name: model tiers (report only)
+    runs-on: ubuntu-latest
+    # Budget, part 1: a hard wall-clock ceiling. vitest itself allows 240s per case,
+    # so a hung tier can otherwise burn a runner for hours.
+    timeout-minutes: 45
+    # A fork PR must never see the OpenRouter secret, so skip the whole job there
+    # rather than relying on the model tiers to "not leak it". Same-repo PRs and
+    # pushes to main still run.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        working-directory: evals
+    env:
+      EVAL_BACKEND: openrouter
+      OPENROUTER_BASE_URL: http://localhost:4000
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # gemini-2.5-flash is the one cheap model verified to actually DISPATCH a
+      # subagent (see evals/README.md) — the workflow tier asserts on that trace.
+      EVAL_MODEL: google/gemini-2.5-flash
+      EVAL_JUDGE_MODEL: google/gemini-2.5-flash
+      # Budget, part 2: turn ceiling for cases that don't declare their own
+      # (a case's `maxTurns` still wins — see src/dsl/case.ts).
+      EVAL_MAX_TURNS: '6'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Guard — OpenRouter key present
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::OPENROUTER_API_KEY is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      # The tool tiers (agents/workflow) run inside the Claude Agent SDK, which speaks
+      # the Anthropic wire protocol. LiteLLM translates that to a non-Anthropic model.
+      - name: Start LiteLLM proxy
+        run: docker compose -f proxy/docker-compose.yml up -d
+
+      - name: Wait for proxy
+        run: pnpm proxy:wait
+
+      # Budget, part 3: ONE trial per case — no eval:repeat here. Repeat/delta is the
+      # local re-calibration loop (CLAUDE.md), not something CI pays for on every PR.
+      # Tiers run as separate steps so the report shows WHICH tier moved.
+      - name: Run model eval tiers
+        id: tiers
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          strip_ansi() { sed -r 's/\x1b\[[0-9;]*m//g'; }
+
+          {
+            echo "## Harness evals — model tiers (report only, does not block merge)"
+            echo ""
+            echo "Model \`$EVAL_MODEL\` · judge \`$EVAL_JUDGE_MODEL\` · 1 trial per case · turn cap \`$EVAL_MAX_TURNS\`"
+            echo ""
+            echo "| tier | result |"
+            echo "|------|--------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          for tier in skills agents workflow; do
+            if pnpm "eval:$tier" 2>&1 | tee "eval-$tier.log"; then
+              echo "| \`eval:$tier\` | ✅ pass |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| \`eval:$tier\` | ❌ fail |" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            fi
+          done
+
+          # Baseline comparison: each quality case is scored against the threshold
+          # already calibrated into its *.cases.ts, and each workflow case against its
+          # expected trace. The per-practice breakdown below is that comparison —
+          # a regression shows up as a specific FAILed practice, not a moved average.
+          {
+            echo ""
+            echo "<details><summary>Per-case verdicts vs calibrated baseline</summary>"
+            echo ""
+            echo '```'
+            # Strip ANSI BEFORE matching — the colour codes sit INSIDE the brackets
+            # ("[<esc>[32mPASS<esc>[0m]"), so filtering first would drop every
+            # PASS/FAIL line and hide exactly the evidence a regression needs.
+            for log in eval-*.log; do
+              echo "--- ${log%.log} ---"
+              strip_ansi < "$log" | grep -E '^\s+(judge|trace):|^\s+\[(PASS|FAIL)\]' || echo "(no verdict output)"
+            done
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $failed
+
+      # Full logs for the tier that moved. results/ holds model OUTPUT only (no keys),
+      # but it is gitignored and never committed — this is a throwaway CI artifact.
+      - name: Upload eval logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-logs
+          path: |
+            evals/eval-*.log
+            evals/results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # `continue-on-error` keeps the JOB green when a tier fails, so failure() alone
+      # would never fire here — check the step's own outcome too.
+      - name: Proxy logs
+        if: failure() || steps.tiers.outcome == 'failure'
+        run: docker compose -f proxy/docker-compose.yml logs --tail 100
+
+      - name: Stop proxy
+        if: always()
+        run: docker compose -f proxy/docker-compose.yml down
