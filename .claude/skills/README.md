@@ -23,6 +23,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads/writes per-module `insights.md` — non-obvious discoveries, append-only |
 | [workflow-retro](workflow-retro/SKILL.md) | Shared | Manual-only post-run retro of a multi-agent workflow — quick (in-context) or `deep` (reads disk transcripts); appends a row to `docs/retro/ledger.md` |
+| [dependency-checker](dependency-checker/SKILL.md) | Shared | On-demand npm dependency audit across all 5 packages — size, drift, mixed package managers, a Mermaid share-graph, prioritized recommendations |
 
 ## What Are Skills?
 

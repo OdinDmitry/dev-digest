@@ -27,3 +27,8 @@ test-results/
 
 # pr-self-review gate state — local verdict for the current tree, never shared
 .claude/.pr-self-review/
+
+# skill-eval run output (iteration dirs, benchmark.json, grading.json, review.html) —
+# regenerated per comparison run, not test data; the committed source is
+# .claude/skills/<name>/evals/
+.claude/skills/*-workspace/
