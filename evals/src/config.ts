@@ -9,6 +9,10 @@
 export const EVAL_MODEL = process.env.EVAL_MODEL ?? "claude-haiku-4-5";
 export const EVAL_JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? "claude-sonnet-5";
 export const MAX_TURNS = Number(process.env.EVAL_MAX_TURNS ?? "8");
+// Ceiling for one eval:repeat series. Default 2 keeps an ad-hoc stability check cheap; a real
+// version-vs-version series wants 5, since below that the stddev is flagged "indicative only".
+// Raise it deliberately (EVAL_REPEAT_MAX=5) when you are actually measuring, not spot-checking.
+export const REPEAT_MAX_TIMES = Number(process.env.EVAL_REPEAT_MAX ?? "2");
 
 // --- Configuration tag ------------------------------------------------------
 // "candidate" = artifact injected (normal). "baseline" = no artifact (benchmark lift baseline).

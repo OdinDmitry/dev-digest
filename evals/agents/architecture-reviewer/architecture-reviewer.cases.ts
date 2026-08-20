@@ -41,7 +41,14 @@ export const cases: AgentCase[] = [
       "names the specific documented rule identifier for EVERY finding (e.g. `inward-only-dependencies`, `di-discipline`) rather than describing the problem only in prose",
       "assigns a severity (critical/high/medium/low/info) to each finding",
       "quotes the offending line verbatim as evidence for each finding, not a paraphrase",
-      "ends with an explicit PASS/FAIL gate verdict based on whether any critical or high findings exist",
+      // Was "ends with an explicit PASS/FAIL gate verdict". The agent definition forbids exactly
+      // that ("there is no `verdict`, no `score`, and no JSON here — those belong to the DB-stored
+      // product review prompts"), because a verdict/score belongs to the PRODUCT review plane, not
+      // to a harness subagent. So the old practice could never pass for EITHER A/B variant and made
+      // threshold 1.0 unreachable by construction. The intent it was reaching for — the reviewer
+      // states its overall conclusion instead of dumping findings — is preserved here against the
+      // closing sections the agent's report template actually mandates.
+      "closes the report with its 'Checked and clean' and 'Not assessed' sections — naming which boundary rules were verified with nothing to report, and which concerns (security, test quality, performance) are deliberately left to another agent/skill",
     ],
     threshold: 1.0,
     maxTurns: 25,
@@ -67,7 +74,7 @@ export const cases: AgentCase[] = [
       "names the exact documented rule identifier `reviewer-core-zero-io` for the fs-import finding rather than only describing it in prose",
       "names the exact documented rule identifier `reviewer-core-ground-findings-gate` for the skipped-gate finding rather than only describing it in prose",
       "quotes the offending line verbatim as evidence for each finding, not a paraphrase",
-      "ends with an explicit PASS/FAIL gate verdict based on whether any critical or high findings exist",
+      "closes the report with its 'Checked and clean' and 'Not assessed' sections — naming which boundary rules were verified with nothing to report, and which concerns (security, test quality, performance) are deliberately left to another agent/skill",
     ],
     threshold: 1.0,
     maxTurns: 25,
@@ -79,7 +86,10 @@ export const cases: AgentCase[] = [
     practices: [
       "reports no violations for the benign rename (or records only `info`-level, non-blocking observations) — it does not invent a critical/high/medium finding",
       "does not fabricate a documented-rule violation where the diff violates none of the checked rules",
-      "the final gate verdict is PASS",
+      // Was "the final gate verdict is PASS" — same defect as above. "Zero findings is a valid,
+      // good answer" per the agent, but it must SAY so rather than go quiet; that is what a clean
+      // run actually looks like in this report format.
+      "states the absence of violations explicitly (e.g. a 'Findings: None' line or an explicitly empty findings section) rather than leaving it implicit",
     ],
     threshold: 1.0,
     maxTurns: 25,

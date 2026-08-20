@@ -32,6 +32,33 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
   runs an approved plan end to end: implement → review ∥ tests → fix loop →
   verify. `spec-creator` and `implementation-planner` stay manual, by design.
 
+## Evals — self-check after harness changes
+The harness (skills, subagents, `CLAUDE.md`) is testable like any other code.
+[evals/](evals/README.md) is a standalone package (`cd evals && pnpm install`);
+locally it runs on the **Claude Code subscription** — no API key, the runner
+strips `ANTHROPIC_API_KEY` on purpose. Route each change to its minimum check:
+
+| Change | Minimum check |
+|--------|---------------|
+| `.claude/skills/**` | `pnpm eval:quality` + `pnpm vitest run skills/<name>` |
+| `.claude/agents/**` | `pnpm vitest run agents/<name>` + `pnpm eval:workflow` |
+| `CLAUDE.md` / routing rules | `pnpm eval:workflow` |
+| an eval case or a grader | re-calibrate the baseline (below) |
+
+Re-calibration is a **labeled series**, never a single run — capture the
+baseline label *before* the edit, there is no way to reconstruct it after:
+
+```bash
+pnpm eval:repeat skills/<name> -n 5 --label baseline   # BEFORE the edit
+pnpm eval:repeat skills/<name> -n 5 --label candidate  # AFTER
+pnpm eval:delta baseline candidate                     # per-practice diff
+```
+
+CI ([.github/workflows/evals.yml](.github/workflows/evals.yml)) mirrors this:
+`eval:quality` is **blocking**; the model tiers only publish a report, because
+they cost money and fluctuate between runs. A blocking threshold gets added to
+a model tier only once its case set is stable.
+
 ## Non-default conventions
 - This is a **course starter**: the DB schema already contains every table
   future lessons need. Unused ones (`ci`, `eval`, `skills`, `knowledge`, …)
