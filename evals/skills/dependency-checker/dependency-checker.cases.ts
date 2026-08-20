@@ -64,14 +64,28 @@ export const cases: SkillCase[] = [
     maxTurns: 10,
   },
   {
-    name: "distinguishes internal (path-alias) dependencies from external npm dependencies",
+    // A BOUNDARY case, deliberately mixing one in-scope request with one out-of-scope one.
+    //
+    // It used to demand the out-of-scope half outright ("distinguish the path-alias imports…"),
+    // which the skill forbids twice over: its Scope line is "External npm dependencies only", and
+    // its table routes "internal import graph between modules" to repo-intel's `get_blast_radius`.
+    // The skill also can't physically comply — Step 1's inventory script only parses package.json
+    // and the skill bans re-deriving anything by hand, so no path-alias data ever reaches it. The
+    // model correctly refused and the case scored 0/3, punishing exactly the right behaviour.
+    //
+    // Flipped, it now catches BOTH failure modes: doing the out-of-scope analysis anyway, and
+    // over-refusing the whole request (which is what the model actually did in CI — it declined
+    // the audit entirely instead of delivering the in-scope half and naming the right tool).
+    // The fixture still carries the grep output, on purpose: unrequested data must not drag the
+    // skill across its own boundary.
+    name: "keeps the internal import graph out of scope without refusing the dependency audit itself",
     kind: "quality",
     prompt: `This repo isn't a monorepo — server, client, reviewer-core, and e2e share code via TypeScript path aliases, not workspace:* packages. Analyze our dependencies, including how these packages depend on each other internally.\n\n${REPO_DATA}`,
     practices: [
-      "the answer explicitly distinguishes internal cross-package dependencies (the @shared/review-types alias and the direct relative import into reviewer-core/src/pipeline.js) from external npm package dependencies, rather than treating them as the same kind of dependency",
-      // "as a P0-tier" dropped: the skill defines no severity tiers, only an actionability order.
-      "the answer explicitly calls out server/src/services/review-service.ts importing reviewer-core/src/pipeline.js by relative path instead of through reviewer-core's public entry point",
-      "the answer does not claim these packages are linked via workspace:* or pnpm workspaces, since the project explicitly is not a monorepo",
+      "still delivers the external npm dependency audit (version drift, per-package sizes, unused dependencies) rather than declining the request as a whole",
+      "does not present an analysis of the internal path-alias/relative imports between packages as part of the dependency audit",
+      "says where the internal import-graph question belongs (repo-intel's get_blast_radius, or another tool/skill named explicitly) instead of silently dropping that half of the question",
+      "does not claim these packages are linked via workspace:* or pnpm workspaces, since the project explicitly is not a monorepo",
     ],
     threshold: 0.6,
     maxTurns: 10,

@@ -14,6 +14,7 @@ import { mkdirSync, writeFileSync, existsSync, statSync, readdirSync } from "nod
 import { join } from "node:path";
 import { GREEN, RED, DIM, RESET, rateColor } from "./ansi.js";
 import { gitInfo } from "./git.js";
+import { REPEAT_MAX_TIMES } from "./config.js";
 import { countTests, runVitestOnce } from "./run-vitest.js";
 import { RESULTS_DIR } from "./artifacts/paths.js";
 import { aggregate, loadRecords, recordCount, type NodeAggregate, type Stats } from "./records/stats.js";
@@ -70,9 +71,9 @@ function printTest(agg: NodeAggregate, times: number): void {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  // Cap runs at 2 to keep token spend bounded — LLM sessions are expensive, and 2 runs is enough
-  // to catch a blatantly flaky case. Bump MAX_TIMES if you deliberately want a fuller stability run.
-  const MAX_TIMES = 2;
+  // Cap runs to keep token spend bounded — LLM sessions are expensive, and the default 2 is enough
+  // to catch a blatantly flaky case. Set EVAL_REPEAT_MAX=5 for a real version-vs-version series.
+  const MAX_TIMES = REPEAT_MAX_TIMES;
   let times = MAX_TIMES;
   let label: string | undefined;
   const vitestArgs: string[] = [];

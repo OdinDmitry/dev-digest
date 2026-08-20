@@ -13,13 +13,33 @@ import { DIM, RESET } from "./ansi.js";
 const EVALS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+// On Windows `pnpm` is a .cmd shim: spawning the bare name fails with ENOENT, and since Node
+// 18.20 spawning the .cmd directly is refused too (CVE-2024-27980) — so eval:repeat / :delta /
+// :benchmark all died instantly with `spawn pnpm ENOENT` and nothing ever ran. Going through the
+// shell resolves the shim; because shell mode passes one command STRING, any argument containing
+// whitespace (a `-t "some test name"` pattern) has to be quoted here rather than by Node.
+const USE_SHELL = process.platform === "win32";
+
+/**
+ * Shape a `pnpm …` call for the platform: an (command, args) pair on POSIX, and a single
+ * pre-quoted command STRING under shell mode — Node warns (DEP0190) that with `shell: true` it
+ * concatenates an args array without escaping, so a `-t "some test name"` pattern would split.
+ */
+function pnpmInvocation(args: string[]): [string, string[]] {
+  if (!USE_SHELL) return ["pnpm", args];
+  const quoted = ["pnpm", ...args].map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a));
+  return [quoted.join(" "), []];
+}
+
 /** How many test cases the pattern matches, via `vitest list` (no model calls). null on error. */
 export function countTests(vitestArgs: string[]): number | null {
   try {
-    const out = execFileSync("pnpm", ["exec", "vitest", "list", ...vitestArgs], {
+    const [cmd, args] = pnpmInvocation(["exec", "vitest", "list", ...vitestArgs]);
+    const out = execFileSync(cmd, args, {
       cwd: EVALS_DIR,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      shell: USE_SHELL,
     });
     const n = out.split("\n").filter((l) => l.includes(" > ")).length;
     return n || null;
@@ -33,10 +53,12 @@ export function runVitestOnce(label: string, vitestArgs: string[], extraEnv: Rec
   return new Promise((resolve) => {
     const start = Date.now();
     let out = "";
-    const child = spawn("pnpm", ["exec", "vitest", "run", "--reporter=dot", ...vitestArgs], {
+    const [cmd, args] = pnpmInvocation(["exec", "vitest", "run", "--reporter=dot", ...vitestArgs]);
+    const child = spawn(cmd, args, {
       cwd: EVALS_DIR,
       env: { ...process.env, EVAL_QUIET: "1", ...extraEnv },
       stdio: ["ignore", "pipe", "pipe"],
+      shell: USE_SHELL,
     });
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));

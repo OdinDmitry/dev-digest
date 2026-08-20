@@ -16,6 +16,30 @@
 # arrives here as "deepseek/deepseek-chat" and is dispatched as "openrouter/deepseek/deepseek-chat".
 
 model_list:
+  # --- Subagent model aliases (MUST stay above the wildcard) --------------------------------
+  # Subagents carry their own `model:` in frontmatter (.claude/agents/*.md declare `sonnet` or
+  # `opus`), and the Agent SDK resolves that to an Anthropic ID like `claude-sonnet-5` — it does
+  # NOT inherit EVAL_MODEL. The wildcard below would forward that verbatim as
+  # `openrouter/claude-sonnet-5`, which is not a valid OpenRouter slug, so every dispatched
+  # subagent dies with "model is not valid" and the workflow tier can never prove a dispatch
+  # (observed in CI: the Agent tool fired, `subagents: architecture-reviewer` was traced, then the
+  # nested session errored out immediately).
+  #
+  # Mapping them onto the same cheap model the tiers already use keeps CI runs affordable — the
+  # dispatch assertions care that the subagent RAN, not which model backed it. Change the target
+  # here if you want a subagent evaluated on a stronger model.
+  - model_name: "claude-sonnet-5"
+    litellm_params: &cheap_subagent
+      model: "openrouter/google/gemini-2.5-flash"
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: "claude-opus-5"
+    litellm_params: *cheap_subagent
+  - model_name: "sonnet"
+    litellm_params: *cheap_subagent
+  - model_name: "opus"
+    litellm_params: *cheap_subagent
+
+  # --- Everything else: forward the slug straight through to OpenRouter ----------------------
   - model_name: "*"
     litellm_params:
       model: "openrouter/*"
