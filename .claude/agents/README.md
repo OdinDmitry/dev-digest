@@ -11,10 +11,11 @@ for exact behavior read each agent's own file.
 | [implementer.md](implementer.md) | Executes an existing Development Plan across frontend/backend, applying the skills the plan names and running the touched modules' typecheck + fast unit tests. Authors no tests; does not perform architecture or security review | `Read, Grep, Glob, Edit, Write, Bash` | `fastify-best-practices, next-best-practices, react-best-practices, drizzle-orm-patterns, postgresql-table-design, zod, typescript-expert, engineering-insights` | sonnet | Path to a Development Plan file under `docs/plans/` — optionally plus a findings report (fix mode) | Code changes scoped to the plan's file list + a structured report (`## Plan reference / Steps completed / Handed to test-writer / Commands run & results / Scope deviations / Note`) |
 | [test-writer.md](test-writer.md) | The repo's **sole** test author — writes and extends tests for existing client/server code, working from a plan's Traceability table when given one; never edits implementation code | `Read, Grep, Glob, Edit, Write, Bash` | `react-testing-library, fastify-best-practices, zod, typescript-expert, engineering-insights` | sonnet | A component/module/behavior to cover, or a Development Plan whose `test-writer` tasks are outstanding | New/extended test files + a report (`## Code under test / Tests added / Plan coverage / Commands run & results / Cases left uncovered / Note`) |
 | [architecture-reviewer.md](architecture-reviewer.md) | Reviews written code for layering and import-direction violations; evidence-backed findings only, no generic advice. Read-only | `Read, Grep, Glob, Bash` (git inspection only) | `onion-architecture, frontend-ui-architecture, engineering-insights` | sonnet | A diff, a file list, or a module to review | Plain-text findings report in the reply (`## Scope reviewed / Findings (file:line) / Checked and clean / Not assessed`) — no file written |
+| [security-reviewer.md](security-reviewer.md) | Reviews written code for exploitable vulnerabilities against OWASP Top 10:2025, translated onto this repo's stack (Fastify/Drizzle/Zod/Next.js) and its own trust boundaries (`SecretsProvider`, the `reviewer-core` prompt-injection guard, the no-login `LocalNoAuthProvider`). Uses this repo's three-level severity, not the preloaded skill's four. Read-only | `Read, Grep, Glob, Bash` (git inspection only) | `security, engineering-insights` | sonnet | A diff, a file list, or a module to review | Plain-text findings report in the reply (`## Scope reviewed / Findings (file:line) / Lethal-trifecta candidates / Checked and clean / Not assessed`) — no file written |
 | [plan-verifier.md](plan-verifier.md) | Checks implemented code against every item of a Development Plan and runs the plan's own Verification commands; reports gaps, not style preferences. Read-only | `Read, Grep, Glob, Bash` | none | sonnet | Path to a Development Plan whose implementation is finished | Per-task verdict table (task → AC → evidence) + gaps/scope report in the reply — no file written |
 | [doc-writer.md](doc-writer.md) | Turns an implemented feature or a shipped plan into documentation with diagrams, placed per the per-module `docs/` topic-index convention | `Read, Grep, Glob, Write, Edit` | `mermaid-diagram, engineering-insights` | sonnet | An implemented feature and/or a Development Plan to document | `<module>/docs/<topic>.md` + a `CLAUDE.md` "Further reading" link + a short report |
 
-None of the eight agents has the `Skill` tool — their skills are preloaded
+None of the nine agents has the `Skill` tool — their skills are preloaded
 in full via the `skills:` frontmatter field instead, so no tool call is
 needed to fetch a skill's content mid-task. `spec-creator` gets the two
 spec-authoring skills (`ears-acceptance-criteria`,
@@ -38,7 +39,13 @@ and were being paid for work the agent is forbidden to do; when a plan step
 genuinely turns on one, `implementer` reads that `SKILL.md` directly with
 `Read`. `test-writer` gets the client/server testing
 conventions plus `zod`/`typescript-expert` for fixtures; `architecture-reviewer`
-gets the two layering skills it checks against; `doc-writer` gets the
+gets the two layering skills it checks against; `security-reviewer` gets
+`security` (the OWASP rubric it checks against, translated onto this repo's
+own stack and trust boundaries by its own prompt) plus `engineering-insights`,
+for the same reason `architecture-reviewer` gets it — a module's `insights.md`
+records deliberate conventions (this repo's no-login `LocalNoAuthProvider`,
+`reviewer-core`'s deliberate no-denylist prompt-injection defense) that would
+otherwise read as findings; `doc-writer` gets the
 diagram skill and the insights-boundary skill. `plan-verifier` and
 `researcher` preload nothing on purpose: `plan-verifier` checks falsifiable
 claims against the plan rather than whether a convention was applied
@@ -63,24 +70,34 @@ on review; the findings-discipline rules in both prompts ("zero findings is a
 valid answer", "never pad toward a count", "cite an exact `file:line`") exist
 precisely for that, and `/impl` never auto-acts on SUGGESTION-grade findings.
 
+`security-reviewer` was built as sonnet from the start, for the same reason:
+it matches a diff against the OWASP categories a skill already enumerates,
+translated onto this repo's own stack rather than judged from first
+principles, and — like `architecture-reviewer` — it now runs once per `/impl`
+call. The same findings-discipline rules mitigate the same false-positive
+risk, plus an explicit rule collapsing the preloaded skill's four-level
+severity onto this repo's three, so its `CRITICAL`/`WARNING`/`SUGGESTION`
+gate behaves identically to `architecture-reviewer`'s in the Phase 3 fix loop.
+
 ## Running the chain: `/impl`
 
 [`.claude/commands/impl.md`](../commands/impl.md) orchestrates everything from
 an approved plan onward: `implementer` → (`architecture-reviewer` ∥
-`test-writer`) → one fix loop fed by both → `plan-verifier`, with iteration
-caps and a scope gate on extra requirements.
+`security-reviewer` ∥ `test-writer`) → one fix loop fed by all three →
+`plan-verifier`, with iteration caps and a scope gate on extra requirements.
 
 `spec-creator` and `implementation-planner` are deliberately **outside** it —
 they are run by hand and reviewed by a human before the plan is executable.
 
 Two ordering decisions in that chain are worth knowing. **Review and test
-authoring run in parallel** because their writes cannot collide — the reviewer
-is read-only and `test-writer` only ever touches test files. And **both feed a
-single fix loop**: an architecture finding and "this test fails because the
-implementation is wrong" are both defects for `implementer` in fix mode, so
-they go into one call per iteration rather than two. When a fix moves or
-renames something a new test imports, the repair goes back to `test-writer` —
-`implementer` never edits a test file to match its own change.
+authoring run in parallel** because their writes cannot collide — both
+reviewers are read-only and `test-writer` only ever touches test files. And
+**all three feed a single fix loop**: an architecture finding, a security
+finding, and "this test fails because the implementation is wrong" are all
+defects for `implementer` in fix mode, so they go into one call per iteration
+rather than three. When a fix moves or renames something a new test imports,
+the repair goes back to `test-writer` — `implementer` never edits a test file
+to match its own change.
 
 `plan-verifier` runs last, after tests exist, which is what lets it give an
 honest verdict on the traceability table instead of reporting a wall of
@@ -94,9 +111,10 @@ not-yet-written tests as gaps.
 `test-writer` covers the implemented behavior with tests; `plan-verifier`
 checks the implementation against the plan, and the plan's traceability table
 against the spec's acceptance criteria; `architecture-reviewer` checks the
-result's layering and import direction; `doc-writer` turns the shipped work
-into module documentation. They hand off through artifacts — the spec file,
-the plan file, the code, the docs — not through conversation.
+result's layering and import direction; `security-reviewer` checks it for
+exploitable vulnerabilities; `doc-writer` turns the shipped work into module
+documentation. They hand off through artifacts — the spec file, the plan
+file, the code, the docs — not through conversation.
 
 **Test authoring has exactly one owner: `test-writer`.** Every plan task
 carries an `owner:` field, and a test named in a plan's traceability table
@@ -121,8 +139,9 @@ enforced by prompt: only `spec-creator` may write under `docs/specs/`, only
 
 Architecture and security review are out of scope for the planning and
 implementation agents by design: `architecture-reviewer` owns the
-architecture half; no Claude Code security-review subagent exists yet, so the
-`security` skill and `pr-self-review` cover that ground for now.
+architecture half and `security-reviewer` owns the security half, both
+inside `/impl`; `pr-self-review` and the `/security-review` skill remain the
+pre-PR and on-demand out-of-diff backstops.
 
 **Two structural limits shape these prompts.** A subagent cannot open a
 dialogue with the user — so `spec-creator` and `implementation-planner` return
@@ -201,6 +220,20 @@ question) and re-runs the agent with the findings.
   DB-stored prompts assembled by `reviewer-core/src/prompt.ts` with
   JSON-schema-constrained output — is deliberately not copied, since a
   Claude Code subagent has no output schema.
+- In-repo prior art,
+  [`docs/agent-prompts/security-reviewer.md`](../../docs/agent-prompts/security-reviewer.md) —
+  the three-level `CRITICAL`/`WARNING`/`SUGGESTION` severity rubric with its
+  anti-inflation rule ("if you cannot describe a concrete exploit, it is at
+  most `WARNING`"), and the lethal-trifecta definition and conservative
+  classification test (name all three components with a `file:line` each, or
+  it is not a trifecta). `security-reviewer.md` (this directory) reuses both
+  verbatim rather than the preloaded `security` skill's own four-level
+  `CRITICAL`/`HIGH`/`MEDIUM`/`LOW` scale, specifically so its `CRITICAL`
+  findings gate the `/impl` Phase 3 fix loop the same way
+  `architecture-reviewer`'s do. The DB-stored prompt's *mechanism* — JSON
+  output constrained by the `Review` Zod schema, a `verdict` field the engine
+  passes through — is not copied for the same reason noted above: a Claude
+  Code subagent has no output schema.
 - In-repo convention, the per-module `docs/README.md` topic indexes
   ([server/docs/README.md](../../server/docs/README.md),
   [client/docs/README.md](../../client/docs/README.md),
@@ -239,9 +272,10 @@ choosing its own output file location, and none mentions diagrams at all,
 so both are grounded entirely in this repo's own conventions per the bullet
 above; (b) `test-writer`'s "test files only" boundary is enforced by prompt
 text, because Claude Code's `tools:` allowlist cannot scope a tool to a
-path; (c) the same applies to `architecture-reviewer`'s "git inspection
-only" restriction on `Bash`, `doc-writer`'s "`CLAUDE.md` Further-reading
-section only" restriction on `Edit`, and `spec-creator`'s "`docs/specs/` only"
-boundary — all four are prompt-enforced for the same reason. A `PreToolUse`
-hook is the only mechanism that would enforce them mechanically; this repo
-deliberately does not use one for path scoping yet.
+path; (c) the same applies to `architecture-reviewer`'s and
+`security-reviewer`'s identical "git inspection only" restriction on `Bash`,
+`doc-writer`'s "`CLAUDE.md` Further-reading section only" restriction on
+`Edit`, and `spec-creator`'s "`docs/specs/` only" boundary — all five are
+prompt-enforced for the same reason. A `PreToolUse` hook is the only
+mechanism that would enforce them mechanically; this repo deliberately does
+not use one for path scoping yet.
