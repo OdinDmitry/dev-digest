@@ -57,4 +57,60 @@ describe("FindingCard (smoke, both themes)", () => {
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
+
+  it("finding_card_offers_the_eval_case_action", () => {
+    // AC-42: the control is disabled on an undecided finding, so this needs a
+    // decided one — both directions of the decision offer it.
+    const acceptedFinding: FindingRecord = { ...FINDING, accepted_at: "2026-08-20T10:00:00.000Z" };
+    const onCreateEvalCase = vi.fn();
+    const { unmount } = renderWithIntl(
+      <FindingCard
+        f={acceptedFinding}
+        defaultExpanded
+        onAction={() => {}}
+        onCreateEvalCase={onCreateEvalCase}
+      />,
+    );
+    const acceptedAction = screen.getByRole("button", { name: "Turn into eval case" });
+    expect(acceptedAction).toBeEnabled();
+    fireEvent.click(acceptedAction);
+    expect(onCreateEvalCase).toHaveBeenCalledTimes(1);
+    unmount();
+
+    const dismissedFinding: FindingRecord = { ...FINDING, dismissed_at: "2026-08-20T10:00:00.000Z" };
+    const onCreateEvalCase2 = vi.fn();
+    renderWithIntl(
+      <FindingCard
+        f={dismissedFinding}
+        defaultExpanded
+        onAction={() => {}}
+        onCreateEvalCase={onCreateEvalCase2}
+      />,
+    );
+    const dismissedAction = screen.getByRole("button", { name: "Turn into eval case" });
+    expect(dismissedAction).toBeEnabled();
+    fireEvent.click(dismissedAction);
+    expect(onCreateEvalCase2).toHaveBeenCalledTimes(1);
+  });
+
+  it("finding_card_eval_action_unavailable_without_a_decision", () => {
+    // AC-42: a finding with neither an accepted nor a dismissed decision
+    // renders the control disabled, states why, and never calls the handler.
+    const onCreateEvalCase = vi.fn();
+    renderWithIntl(
+      <FindingCard f={FINDING} defaultExpanded onAction={() => {}} onCreateEvalCase={onCreateEvalCase} />,
+    );
+    const action = screen.getByRole("button", { name: "Turn into eval case" });
+    expect(action).toBeDisabled();
+    expect(
+      screen.getByText("Accept or dismiss this finding first to turn it into an eval case."),
+    ).toBeInTheDocument();
+    fireEvent.click(action);
+    expect(onCreateEvalCase).not.toHaveBeenCalled();
+  });
+
+  it("does not render the eval-case action when no handler is supplied", () => {
+    renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Turn into eval case" })).not.toBeInTheDocument();
+  });
 });

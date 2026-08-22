@@ -28,8 +28,8 @@ export const NAV: NavGroup[] = [
   },
   {
     // Authoring surface: the reusable skills library, the agents that link
-    // it, and the repo-scoped conventions extractor that feeds it. Later
-    // lessons add the Eval Dashboard to this group.
+    // it, the repo-scoped conventions extractor that feeds it, and the eval
+    // dashboard that scores what those agents actually return.
     section: "SKILLS LAB",
     items: [
       { key: "skills", label: "Skills", icon: "Sparkles", href: "/skills", gKey: "s" },
@@ -41,6 +41,9 @@ export const NAV: NavGroup[] = [
         href: "/repos/:repoId/conventions",
         gKey: "c",
       },
+      // `key`/`href` must match `activeKeyFor`'s `/eval` branch exactly
+      // (app-shell/helpers.ts:35).
+      { key: "eval", label: "Eval Dashboard", icon: "FlaskConical", href: "/eval", gKey: "e" },
     ],
   },
 ];
@@ -65,14 +68,22 @@ export interface ShortcutDef {
   group: "Navigation" | "Findings" | "Actions" | "Global";
 }
 
+/** The `Navigation` group is DERIVED from `NAV` — one `Go to ${label}` / `g
+ *  ${gKey}` entry per item that carries a `gKey` — rather than hand-kept.
+ *  A nav item added without a matching edit here is exactly how a shortcut
+ *  silently goes missing from the help overlay; deriving it makes that class
+ *  of miss impossible. The other groups below aren't derived from any other
+ *  list, so they stay hand-kept. */
+const NAV_SHORTCUTS: ShortcutDef[] = NAV.flatMap((group) =>
+  group.items
+    .filter((item): item is NavItemDef & { gKey: string } => !!item.gKey)
+    .map((item) => ({ keys: `g ${item.gKey}`, label: `Go to ${item.label}`, group: "Navigation" as const })),
+);
+
 export const SHORTCUTS: ShortcutDef[] = [
   { keys: "⌘K", label: "Open command palette", group: "Global" },
   { keys: "?", label: "Show keyboard shortcuts", group: "Global" },
-  { keys: "g p", label: "Go to Pull Requests", group: "Navigation" },
-  { keys: "g x", label: "Go to Project Context", group: "Navigation" },
-  { keys: "g s", label: "Go to Skills", group: "Navigation" },
-  { keys: "g a", label: "Go to Agents", group: "Navigation" },
-  { keys: "g c", label: "Go to Conventions", group: "Navigation" },
+  ...NAV_SHORTCUTS,
   { keys: "j / k", label: "Next / previous finding", group: "Findings" },
   { keys: "a", label: "Accept finding", group: "Findings" },
   { keys: "d", label: "Dismiss finding", group: "Findings" },

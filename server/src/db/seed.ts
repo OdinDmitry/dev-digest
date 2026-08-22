@@ -13,10 +13,47 @@ import {
   API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { SEED_SKILLS, API_CONTRACT_SKILLS, type SeedSkill } from './seed-skills.js';
+import { cutFragment } from '../modules/eval/helpers.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
 const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+
+/**
+ * SPEC-03 eval pipeline (T13) — the seeded `pr_files` rows shipped with no
+ * `patch` (`server/insights.md`-cited gap: no fragment can be cut for any
+ * finding on this PR as the database ships). These two real patches cover
+ * the two seeded findings' exact line ranges so "turn into eval case" is
+ * reachable in dev and in e2e without a live GitHub token.
+ */
+const CONFIG_TS_PATCH = [
+  '@@ -9,3 +9,7 @@',
+  ' const config = {',
+  '   port: process.env.PORT || 3000,',
+  "   apiVersion: 'v2',",
+  "+  stripeSecretKey: 'sk_live_51Hxxxxxxxxxxxxxxxxxxxxxxxx',",
+  '+  rateLimit: { windowMs: 60_000, max: 100 },',
+  '+  retries: 3,',
+  '+  timeout: 5000,',
+].join('\n');
+
+const USERS_TS_PATCH = [
+  '@@ -43,7 +43,12 @@',
+  ' async function listUsers(req, res) {',
+  '   const ids = await getUserIds();',
+  '-  const users = [];',
+  '-  for (const id of ids) {',
+  "+  const users = await db.query('SELECT * FROM users WHERE id IN (?)', [ids]);",
+  '+  // Preserve original per-id ordering.',
+  '+  const byId = new Map(users.map((u) => [u.id, u]));',
+  '+  const ordered = ids.map((id) => byId.get(id));',
+  '+  if (!ordered.length) {',
+  '+    return res.json([]);',
+  '+  }',
+  "     const user = await db.query('SELECT * FROM users WHERE id = ?', [id]);",
+  '     users.push(user);',
+  '   }',
+].join('\n');
 
 /**
  * Seed the starter's demo data. Idempotent: re-running upserts the default
@@ -101,6 +138,10 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
   const repoId = repo!.id;
 
   // ---- PR #482 (rate limiting) ----
+  // Populated only on a fresh seed (inside the `if (!pr)` branch below) —
+  // feeds the SPEC-03 eval-case/eval-run seed further down (T13(c)/(d)).
+  let configFindingId: string | undefined;
+  let usersFindingId: string | undefined;
   let [pr] = await db
     .select()
     .from(t.pullRequests)
@@ -125,12 +166,14 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       })
       .returning();
 
-    // pr_files (subset)
+    // pr_files (subset). src/config.ts and src/api/users.ts carry a real
+    // `patch` (SPEC-03 T13) covering the two seeded findings below, so their
+    // fragments can be cut for an eval case.
     await db.insert(t.prFiles).values([
       { prId: pr!.id, path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
       { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
-      { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
-      { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
+      { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0, patch: CONFIG_TS_PATCH },
+      { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2, patch: USERS_TS_PATCH },
       // L03 Smart Diff (plan §13): two `boilerplate`-classified rows so the
       // "lockfiles start collapsed" + large-file-highlight signals are both
       // demonstrable without a live GitHub token. `pnpm-lock.yaml` is also
@@ -163,32 +206,43 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       })
       .returning();
 
-    await db.insert(t.findings).values([
-      {
-        reviewId: review!.id,
-        file: 'src/config.ts',
-        startLine: 12,
-        endLine: 12,
-        severity: 'CRITICAL',
-        category: 'security',
-        title: 'Hardcoded Stripe secret key in commit',
-        rationale: 'Line 12 contains a literal `sk_live_` Stripe secret key.',
-        suggestion: 'Move to env var and rotate the key immediately.',
-        confidence: 0.98,
-      },
-      {
-        reviewId: review!.id,
-        file: 'src/api/users.ts',
-        startLine: 45,
-        endLine: 52,
-        severity: 'WARNING',
-        category: 'perf',
-        title: 'N+1 query in user list endpoint',
-        rationale: 'Loop issues one query per user → N+1.',
-        suggestion: 'Use a single IN query and group in memory.',
-        confidence: 0.86,
-      },
-    ]);
+    // SPEC-03 T13(b), field renamed under SPEC-04 (AC-40/AC-41): decide both
+    // seeded findings so the eval-case draft's derived expectation kind is
+    // demonstrable in both directions — accepted → must_find, dismissed →
+    // must_not_flag.
+    const insertedFindings = await db
+      .insert(t.findings)
+      .values([
+        {
+          reviewId: review!.id,
+          file: 'src/config.ts',
+          startLine: 12,
+          endLine: 12,
+          severity: 'CRITICAL',
+          category: 'security',
+          title: 'Hardcoded Stripe secret key in commit',
+          rationale: 'Line 12 contains a literal `sk_live_` Stripe secret key.',
+          suggestion: 'Move to env var and rotate the key immediately.',
+          confidence: 0.98,
+          acceptedAt: new Date(),
+        },
+        {
+          reviewId: review!.id,
+          file: 'src/api/users.ts',
+          startLine: 45,
+          endLine: 52,
+          severity: 'WARNING',
+          category: 'perf',
+          title: 'N+1 query in user list endpoint',
+          rationale: 'Loop issues one query per user → N+1.',
+          suggestion: 'Use a single IN query and group in memory.',
+          confidence: 0.86,
+          dismissedAt: new Date(),
+        },
+      ])
+      .returning();
+    configFindingId = insertedFindings[0]!.id;
+    usersFindingId = insertedFindings[1]!.id;
   }
 
   // ---- L03: seed a pr_intent row for PR #482 ----
@@ -407,6 +461,265 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         .insert(t.agentSkills)
         .values(skillIds.map((skillId, order) => ({ agentId: agent.id, skillId, order })))
         .onConflictDoNothing();
+    }
+  }
+
+  // ---- SPEC-03 eval pipeline (T13(c)/(d)): two eval cases for Security
+  // Reviewer (one must_find, one must_not_flag) plus two completed
+  // eval_suite_runs with different agent_version/metric/cost values, so both
+  // AC-6 decision directions AND the AC-38/AC-39 comparison surface are
+  // demonstrable with zero model calls. Only runs on a fresh seed (guarded by
+  // the fresh-PR finding ids captured above), same limitation as the rest of
+  // this fixed-target PR #482 dataset.
+  if (configFindingId && usersFindingId) {
+    const [securityAgent] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+    const [testQualitySkill] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, SEED_SKILLS[0]!.name)));
+
+    if (securityAgent && testQualitySkill) {
+      const configFragment = cutFragment('src/config.ts', CONFIG_TS_PATCH, 12, 12);
+      const usersFragment = cutFragment('src/api/users.ts', USERS_TS_PATCH, 45, 52);
+
+      // SPEC-04: severity/category copied from the finding each case was born
+      // from (AC-44), and a `latest_result` in each direction (AC-52/AC-53)
+      // so the case-row copy has both a passed and a failed case on screen.
+      const [mustFindCase] = await db
+        .insert(t.evalCases)
+        .values({
+          workspaceId,
+          ownerKind: 'agent',
+          ownerId: securityAgent.id,
+          name: 'Flags a hardcoded Stripe secret key',
+          inputDiff: configFragment ?? '',
+          sourceFindingId: configFindingId,
+          file: 'src/config.ts',
+          startLine: 12,
+          endLine: 12,
+          severity: 'CRITICAL',
+          category: 'security',
+          latestResult: {
+            completed: true,
+            passed: true,
+            error: null,
+            findings: [
+              {
+                file: 'src/config.ts',
+                start_line: 12,
+                end_line: 12,
+                grounded: true,
+                severity: 'CRITICAL',
+                title: 'Hardcoded Stripe secret key in commit',
+              },
+            ],
+            matched_count: 1,
+            ran_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+          },
+        })
+        .returning();
+      await db.insert(t.evalCaseExpectations).values({
+        caseId: mustFindCase!.id,
+        kind: 'must_find',
+        file: 'src/config.ts',
+        startLine: 12,
+        endLine: 12,
+      });
+
+      const [mustNotFlagCase] = await db
+        .insert(t.evalCases)
+        .values({
+          workspaceId,
+          ownerKind: 'agent',
+          ownerId: securityAgent.id,
+          name: 'Does not flag the N+1 query as a security issue',
+          inputDiff: usersFragment ?? '',
+          sourceFindingId: usersFindingId,
+          file: 'src/api/users.ts',
+          startLine: 45,
+          endLine: 52,
+          severity: 'WARNING',
+          category: 'perf',
+          // Failed: the agent flagged the range a must_not_flag case forbids.
+          latestResult: {
+            completed: true,
+            passed: false,
+            error: null,
+            findings: [
+              {
+                file: 'src/api/users.ts',
+                start_line: 45,
+                end_line: 52,
+                grounded: true,
+                severity: 'WARNING',
+                title: 'N+1 query in user list endpoint',
+              },
+            ],
+            matched_count: 1,
+            ran_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+          },
+        })
+        .returning();
+      await db.insert(t.evalCaseExpectations).values({
+        caseId: mustNotFlagCase!.id,
+        kind: 'must_not_flag',
+        file: 'src/api/users.ts',
+        startLine: 45,
+        endLine: 52,
+      });
+
+      // A THIRD case for the same agent with severity/category/latest_result
+      // all left NULL — the "created before this round / never run" state
+      // AC-54 and the severity edge case describe. No `sourceFindingId`: it
+      // doesn't need to trace back to a decided finding to demonstrate the
+      // unavailable-not-defaulted state on screen.
+      const neverRunFragment = cutFragment('src/api/users.ts', USERS_TS_PATCH, 46, 49);
+      const [neverRunCase] = await db
+        .insert(t.evalCases)
+        .values({
+          workspaceId,
+          ownerKind: 'agent',
+          ownerId: securityAgent.id,
+          name: 'Preserves original per-id ordering after the batch query',
+          inputDiff: neverRunFragment ?? '',
+          sourceFindingId: null,
+          file: 'src/api/users.ts',
+          startLine: 46,
+          endLine: 49,
+        })
+        .returning();
+      await db.insert(t.evalCaseExpectations).values({
+        caseId: neverRunCase!.id,
+        kind: 'must_find',
+        file: 'src/api/users.ts',
+        startLine: 46,
+        endLine: 49,
+      });
+
+      type SeedReturnedFinding = {
+        file: string;
+        start_line: number;
+        end_line: number;
+        grounded: boolean;
+        severity: string;
+        title: string;
+      };
+
+      // Older → newer, agent_version 1 → 2, showing a regression (recall and
+      // precision both drop) so run-history/compare have something real to
+      // render — the run's OWN skill snapshot also differs (skill_version
+      // 1 → 2) even though nothing about the seeded `skills` row changed,
+      // exactly the "recorded at invocation time" contract AC-38 needs.
+      const runDefs: Array<{
+        startedAt: Date;
+        agentVersion: number;
+        skillVersion: number;
+        recall: number;
+        precision: number;
+        citationAccuracy: number;
+        costUsd: number;
+        casesPassed: number;
+        mustFindOutput: SeedReturnedFinding[];
+        mustNotFlagOutput: SeedReturnedFinding[];
+      }> = [
+        {
+          startedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6), // 6 days ago
+          agentVersion: 1,
+          skillVersion: 1,
+          recall: 1,
+          precision: 1,
+          citationAccuracy: 1,
+          costUsd: 0.007,
+          casesPassed: 2,
+          mustFindOutput: [
+            {
+              file: 'src/config.ts',
+              start_line: 12,
+              end_line: 12,
+              grounded: true,
+              severity: 'CRITICAL',
+              title: 'Hardcoded Stripe secret key in commit',
+            },
+          ],
+          mustNotFlagOutput: [],
+        },
+        {
+          startedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
+          agentVersion: 2,
+          skillVersion: 2,
+          recall: 0,
+          precision: 0,
+          citationAccuracy: 1,
+          costUsd: 0.0075,
+          casesPassed: 0,
+          mustFindOutput: [],
+          mustNotFlagOutput: [
+            {
+              file: 'src/api/users.ts',
+              start_line: 45,
+              end_line: 52,
+              grounded: true,
+              severity: 'WARNING',
+              title: 'N+1 query in user list endpoint',
+            },
+          ],
+        },
+      ];
+
+      for (const def of runDefs) {
+        const completedAt = new Date(def.startedAt.getTime() + 1000 * 30);
+        const [suiteRun] = await db
+          .insert(t.evalSuiteRuns)
+          .values({
+            workspaceId,
+            agentId: securityAgent.id,
+            agentVersion: def.agentVersion,
+            status: 'completed',
+            startedAt: def.startedAt,
+            completedAt,
+            casesTotal: 2,
+            casesCompleted: 2,
+            casesPassed: def.casesPassed,
+            casesFailedToComplete: 0,
+            recall: def.recall,
+            precision: def.precision,
+            citationAccuracy: def.citationAccuracy,
+            costUsd: def.costUsd,
+          })
+          .returning();
+
+        await db.insert(t.evalRuns).values([
+          {
+            caseId: mustFindCase!.id,
+            suiteRunId: suiteRun!.id,
+            ranAt: def.startedAt,
+            actualOutput: def.mustFindOutput,
+            pass: def.mustFindOutput.length > 0,
+            costUsd: def.costUsd / 2,
+          },
+          {
+            caseId: mustNotFlagCase!.id,
+            suiteRunId: suiteRun!.id,
+            ranAt: def.startedAt,
+            actualOutput: def.mustNotFlagOutput,
+            pass: def.mustNotFlagOutput.length === 0,
+            costUsd: def.costUsd / 2,
+          },
+        ]);
+
+        // Different eval_run_skills rows across the two runs — same skill
+        // id, two different skill_version values (AC-38/AC-39).
+        await db.insert(t.evalRunSkills).values({
+          suiteRunId: suiteRun!.id,
+          skillId: testQualitySkill.id,
+          skillVersion: def.skillVersion,
+          skillName: testQualitySkill.name,
+          linkOrder: 0,
+        });
+      }
     }
   }
 

@@ -32,3 +32,7 @@ test-results/
 # regenerated per comparison run, not test data; the committed source is
 # .claude/skills/<name>/evals/
 .claude/skills/*-workspace/
+
+# this repo has no workspace root by design (root CLAUDE.md, "Non-default
+# conventions") — a stray root `pnpm install` must never commit a root lockfile
+/pnpm-lock.yaml

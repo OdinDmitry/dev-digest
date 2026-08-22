@@ -31,6 +31,7 @@ export function FindingCard({
   pending,
   repoFullName,
   headSha,
+  onCreateEvalCase,
 }: {
   f: FindingRecord;
   focused?: boolean;
@@ -39,6 +40,10 @@ export function FindingCard({
   pending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Opens the "turn into eval case" modal for this finding (SPEC-03). A new
+   *  optional prop, not a new `FindingActionKind` — this joins the action row
+   *  but is not an accept/dismiss verb. */
+  onCreateEvalCase?: () => void;
 }) {
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
@@ -50,6 +55,10 @@ export function FindingCard({
   const accepted = !!f.accepted_at;
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
+  // AC-42: the eval-case action needs a decision to derive an expectation
+  // type from (`expectationKindFor`, server side) — `muted` is exactly
+  // "this finding has one".
+  const evalCaseHintId = `eval-case-hint-${f.id}`;
 
   return (
     <div id={`finding-${f.id}`} data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
@@ -109,6 +118,25 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {onCreateEvalCase && (
+              <div style={s.evalCaseWrap}>
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  icon="FlaskConical"
+                  disabled={!muted}
+                  aria-describedby={muted ? undefined : evalCaseHintId}
+                  onClick={onCreateEvalCase}
+                >
+                  {t("finding.turnIntoEvalCase")}
+                </Button>
+                {!muted && (
+                  <span id={evalCaseHintId} style={s.evalCaseHint}>
+                    {t("finding.evalCaseNeedsDecision")}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

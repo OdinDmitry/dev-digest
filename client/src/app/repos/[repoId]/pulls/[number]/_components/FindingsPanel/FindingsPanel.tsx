@@ -8,6 +8,7 @@ import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import type { SeverityKey } from "../../../_components/SeverityCounts";
 import { FindingCard } from "../FindingCard";
+import { EvalCaseModal } from "../EvalCaseModal";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
 import { visibleFindings } from "./helpers";
@@ -38,6 +39,7 @@ export function FindingsPanel({
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
   const [focusIdx, setFocusIdx] = React.useState(0);
+  const [evalCaseFindingId, setEvalCaseFindingId] = React.useState<string | null>(null);
 
   const shown = React.useMemo(
     () => visibleFindings(findings, hideLow, severityFilter),
@@ -82,6 +84,9 @@ export function FindingsPanel({
 
   return (
     <div>
+      {evalCaseFindingId && (
+        <EvalCaseModal findingId={evalCaseFindingId} onClose={() => setEvalCaseFindingId(null)} />
+      )}
       <div style={s.toolbar}>
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
@@ -103,6 +108,7 @@ export function FindingsPanel({
               repoFullName={repoFullName}
               headSha={headSha}
               onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
+              onCreateEvalCase={() => setEvalCaseFindingId(f.id)}
             />
           ))
         )}

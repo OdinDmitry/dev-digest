@@ -2,11 +2,12 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import type {
   Agent,
   AgentListStats,
   AgentSkillLink,
+  AgentVersion,
   ModelInfo,
   Provider,
   ReviewStrategy,
@@ -145,6 +146,27 @@ export function useSetAgentSkills() {
       qc.invalidateQueries({ queryKey: ["agents", "stats"] });
       qc.invalidateQueries({ queryKey: ["skills", "stats"] });
     },
+  });
+}
+
+/**
+ * One historical config snapshot for an agent (the eval-run compare dialog's
+ * prompt diff, AC-32). A version that no longer exists resolves to `null`
+ * rather than throwing — it's a rendered state ("cannot be shown"), not an
+ * error, and the caller branches on `data === null` vs `isLoading`.
+ */
+export function useAgentVersion(agentId: string | null | undefined, version: number | null | undefined) {
+  return useQuery({
+    queryKey: ["agent", agentId, "version", version],
+    queryFn: async () => {
+      try {
+        return await api.get<AgentVersion>(`/agents/${agentId}/versions/${version}`);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    enabled: !!agentId && version != null,
   });
 }
 

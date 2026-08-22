@@ -1,0 +1,22 @@
+{
+  "name": "Eval run comparison shows both runs' values and their delta",
+  "description": "SPEC-04 moved where the comparison opens from: AC-66 opens it from the eval dashboard's run list, not the agent editor's Evals tab (which no longer renders run history at all, AC-59). Selects the seeded Security Reviewer on /eval, selects its two seeded eval-suite runs (agent v1 → v2) and opens the comparison. Asserts on copy only the comparison dialog renders — the compared versions, both recall values and the computed delta (AC-66) — not on the URL or the dialog's mere existence.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to the seeded repo's PR list" },
+    { "cmd": ["find", "text", "Eval Dashboard", "click"], "label": "follow the sidebar's Eval Dashboard link" },
+    { "cmd": ["wait", "--url", "/eval"], "label": "eval dashboard route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agent summaries settle" },
+    { "cmd": ["wait", "--text", "Select an agent to see its own run history."], "label": "the dashboard's own agent-picker copy renders" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "select the seeded Security Reviewer's summary row" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the agent's own filtered run list settles" },
+    { "cmd": ["wait", "--text", "Compare"], "label": "the compare control renders now that an agent is selected" },
+    { "cmd": ["find", "nth", "0", "input[type=checkbox]", "check"], "label": "select the first seeded run" },
+    { "cmd": ["find", "nth", "1", "input[type=checkbox]", "check"], "label": "select the second seeded run" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Compare"], "label": "open the comparison" },
+    { "cmd": ["wait", "--text", "Compare runs · v1 → v2"], "label": "the dialog names the two compared configuration versions, ordered earlier → later regardless of click order" },
+    { "cmd": ["wait", "--text", "100%"], "label": "the earlier run's recall value renders" },
+    { "cmd": ["wait", "--text", "(-100pt)"], "label": "the recall delta between the two runs renders" },
+    { "cmd": ["wait", "--text", "These two runs invoked different skills:"], "label": "AC-39: the two runs' differing skill versions are also stated, so the recall drop is never pinned on the prompt diff alone" }
+  ]
+}

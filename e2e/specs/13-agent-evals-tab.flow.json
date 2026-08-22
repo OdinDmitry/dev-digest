@@ -1,0 +1,18 @@
+{
+  "name": "Agent editor Evals tab renders the case set, its per-case results and the never-run state",
+  "description": "Opens the seeded Security Reviewer and switches to its Evals tab, guarding the same class of defect the Context-tab flow (11) pinned: the tab button reaching the URL is not proof the panel actually rendered, since a broken `?tab=` whitelist still updates the URL and falls back silently. SPEC-04 (AC-59) removed the run history from this surface, so the case-set heading alone no longer distinguishes it from the SPEC-03 build — the final steps instead assert on copy only SPEC-04 introduces: a case's own expected/returned finding count line (AC-53) and the never-run statement of the seeded case with no severity/category/latest_result yet (AC-54).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "open the seeded Security Reviewer" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Evals"], "label": "switch to the Evals tab (the Tabs kit renders plain buttons, not role=tab)" },
+    { "cmd": ["wait", "--url", "tab=evals"], "label": "tab state is in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "eval cases settle" },
+    { "cmd": ["wait", "--text", "Eval cases"], "label": "the case-set heading is visible — Config/Skills/Context render no such copy" },
+    { "cmd": ["wait", "--text", "Flags a hardcoded Stripe secret key"], "label": "a seeded eval case is listed" },
+    { "cmd": ["wait", "--text", "expected 1 finding, got 1 finding"], "label": "AC-53: that case's own expected/returned finding count line renders — new in SPEC-04, absent from the SPEC-03 surface" },
+    { "cmd": ["wait", "--text", "Preserves original per-id ordering after the batch query"], "label": "the third seeded case (created before severity/category capture, never run) is listed" },
+    { "cmd": ["wait", "--text", "never run"], "label": "AC-54: that case states it has never been run rather than a passed/failed state" }
+  ]
+}

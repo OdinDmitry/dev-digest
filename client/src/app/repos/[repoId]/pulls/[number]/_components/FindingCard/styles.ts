@@ -86,6 +86,16 @@ export const s = {
     marginTop: 14,
     flexWrap: "wrap",
   } satisfies CSSProperties,
+  evalCaseWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  evalCaseHint: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
   composer: {
     marginTop: 12,
     display: "flex",

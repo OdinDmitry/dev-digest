@@ -17,6 +17,7 @@ import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
 import { modules } from './modules/index.js';
 import { ReviewService } from './modules/reviews/service.js';
+import { EvalRepository } from './modules/eval/repository.js';
 
 // Attach the DI container to every request/instance.
 declare module 'fastify' {
@@ -82,6 +83,18 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     if (reaped > 0) app.log.info({ reaped }, 'reaped stale running agent_runs on boot');
   } catch (err) {
     app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
+  }
+
+  // Same reasoning as above, for `eval_suite_runs`: without this, a crash
+  // mid eval-run leaves `status='running'` forever and AC-16's partial
+  // unique index permanently blocks that agent from starting a new run.
+  try {
+    const reapedEvalRuns = await new EvalRepository(container.db).reapOrphanedRunningRuns();
+    if (reapedEvalRuns > 0) {
+      app.log.info({ reaped: reapedEvalRuns }, 'reaped stale running eval_suite_runs on boot');
+    }
+  } catch (err) {
+    app.log.warn({ err: (err as Error).message }, 'stale eval-run reaping failed (non-fatal)');
   }
 
   // Security headers (X-Content-Type-Options, X-Frame-Options, …). The API

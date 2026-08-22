@@ -273,3 +273,181 @@ export const HookScanResult = z.object({
   findings: z.array(Finding),
 });
 export type HookScanResult = z.infer<typeof HookScanResult>;
+
+// ==== SPEC-03 eval pipeline ====
+
+export const EvalExpectationKind = z.enum(['must_find', 'must_not_flag']);
+export type EvalExpectationKind = z.infer<typeof EvalExpectationKind>;
+
+export const EvalExpectation = z.object({
+  id: z.string(),
+  kind: EvalExpectationKind,
+  file: z.string().min(1),
+  start_line: z.number().int().min(1),
+  end_line: z.number().int().min(1),
+});
+export type EvalExpectation = z.infer<typeof EvalExpectation>;
+
+/** One finding as the agent returned it for a case, with its grounding outcome.
+ *  `severity`/`title` are `.nullish()` on purpose: this object is persisted as
+ *  jsonb and read back, and a stricter schema would reject a document written
+ *  by an earlier shape (server/insights.md 2026-08-17). */
+export const EvalReturnedFinding = z.object({
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  grounded: z.boolean(),
+  severity: z.string().nullish(),
+  title: z.string().nullish(),
+});
+export type EvalReturnedFinding = z.infer<typeof EvalReturnedFinding>;
+
+/** POST /agents/:id/eval-cases — the expectation type is NOT on the wire.
+ *  It is derived server-side from the finding's decision (AC-40, AC-41). */
+export const EvalCaseCreate = z.object({
+  finding_id: z.string().uuid(),
+  name: z.string().min(1),
+});
+export type EvalCaseCreate = z.infer<typeof EvalCaseCreate>;
+
+/** PUT /eval-cases/:id — the name is a case's ONLY mutable field. The
+ *  fragment, file, range, severity, category and expectation are captured at
+ *  creation and never change (AC-45; SPEC-04 § Contracts, Eval case). */
+export const EvalCaseUpdate = z.object({
+  name: z.string().min(1),
+});
+export type EvalCaseUpdate = z.infer<typeof EvalCaseUpdate>;
+
+/** A case's most recent outcome, from a suite run OR a verification. Persisted
+ *  as jsonb on `eval_cases.latest_result`, so the read path safeParses it and
+ *  falls back to null; a field added here later must be `.nullish()`. */
+export const EvalCaseLatestResult = z.object({
+  completed: z.boolean(),
+  /** null when the invocation did not complete. */
+  passed: z.boolean().nullable(),
+  error: z.string().nullish(),
+  findings: z.array(EvalReturnedFinding),
+  /** AC-53's returned finding count: findings in this result that matched this
+   *  case's expectation, counted server-side with the same rule the metrics
+   *  use — never recomputed in the client. */
+  matched_count: z.number().int(),
+  ran_at: z.string(),
+});
+export type EvalCaseLatestResult = z.infer<typeof EvalCaseLatestResult>;
+
+/** A stored eval case. `fragment`, `file`, `start_line`, `end_line` are
+ *  captured at creation and never change (AC-9). */
+export const EvalCaseRecord = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  name: z.string(),
+  /** The finding this case was born from. Kept as a plain id with no FK so the
+   *  case survives the finding's deletion (Contracts § Diff fragment). */
+  source_finding_id: z.string().nullable(),
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  fragment: z.string(),
+  expectations: z.array(EvalExpectation),
+  created_at: z.string(),
+  /** null for a case created before severity/category were captured — states
+   *  them as unavailable, never as a default severity (SPEC-04 edge case). */
+  severity: z.string().nullable(),
+  category: z.string().nullable(),
+  latest_result: EvalCaseLatestResult.nullable(),
+});
+export type EvalCaseRecord = z.infer<typeof EvalCaseRecord>;
+
+/** GET /findings/:id/eval-case-draft — `expectation_kind` REPLACES
+ *  `default_expectation_kind`: it is derived, never a default to override
+ *  (AC-40). null only when the finding carries no decision, in which case the
+ *  action is unavailable and this endpoint is not reached (AC-42). */
+export const EvalCaseDraft = z.object({
+  finding_id: z.string(),
+  agent_id: z.string(),
+  agent_name: z.string(),
+  suggested_name: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  fragment: z.string(),
+  expectation_kind: EvalExpectationKind.nullable(),
+  /** The case already created from this finding (AC-10); null when none. */
+  existing_case: EvalCaseRecord.nullable(),
+});
+export type EvalCaseDraft = z.infer<typeof EvalCaseDraft>;
+
+export const EvalRunStatus = z.enum(['running', 'completed', 'failed']);
+export type EvalRunStatus = z.infer<typeof EvalRunStatus>;
+
+/**
+ * One skill as a run invoked it (AC-38): its identity plus the version of its
+ * BODY that was invoked. `name` is a snapshot, not a join, so a comparison can
+ * still label a skill that has since been deleted (SPEC-03 Edge cases).
+ *
+ * Known boundary, restated from the spec so nobody reads more into this than it
+ * carries: `skill_version` tracks the body only — `skills/helpers.ts::isBodyChange`
+ * does not bump it on a rename. A disable IS caught, because a disabled skill
+ * drops out of the invoked set entirely.
+ */
+export const EvalInvokedSkill = z.object({
+  skill_id: z.string(),
+  skill_version: z.number().int(),
+  name: z.string(),
+});
+export type EvalInvokedSkill = z.infer<typeof EvalInvokedSkill>;
+
+export const EvalCaseResult = z.object({
+  case_id: z.string(),
+  case_name: z.string(),
+  /** false when the invocation did not complete (AC-20/21/22). */
+  completed: z.boolean(),
+  error: z.string().nullable(),
+  /** null when `completed` is false. */
+  passed: z.boolean().nullable(),
+  findings: z.array(EvalReturnedFinding),
+  cost_usd: z.number().nullable(),
+});
+export type EvalCaseResult = z.infer<typeof EvalCaseResult>;
+
+/** A run over one agent's whole case set. Every metric and the cost are
+ *  `.nullable()` and NEVER `.default(0)` — absent is a distinct state from zero
+ *  (AC-27, AC-37). */
+export const EvalSuiteRun = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  agent_name: z.string(),
+  agent_version: z.number().int(),
+  /** The skills this run invoked, in the order the agent links them (AC-38).
+   *  Empty when the agent had no enabled linked skill when the run started.
+   *  REQUIRED — every hand-built EvalSuiteRun test fixture must supply it. */
+  invoked_skills: z.array(EvalInvokedSkill),
+  status: EvalRunStatus,
+  started_at: z.string(),
+  completed_at: z.string().nullable(),
+  cases_total: z.number().int(),
+  cases_completed: z.number().int(),
+  cases_passed: z.number().int().nullable(),
+  cases_failed_to_complete: z.number().int(),
+  recall: z.number().nullable(),
+  precision: z.number().nullable(),
+  citation_accuracy: z.number().nullable(),
+  cost_usd: z.number().nullable(),
+  /** Ids of the cases this run covered, for AC-33. */
+  case_ids: z.array(z.string()),
+});
+export type EvalSuiteRun = z.infer<typeof EvalSuiteRun>;
+
+export const EvalSuiteRunDetail = EvalSuiteRun.extend({
+  results: z.array(EvalCaseResult),
+});
+export type EvalSuiteRunDetail = z.infer<typeof EvalSuiteRunDetail>;
+
+/** GET /eval-agents — AC-63. `latest_run` is the agent's most recent run of
+ *  ANY status, or null when it has never been run (AC-4). */
+export const EvalAgentSummary = z.object({
+  agent_id: z.string(),
+  agent_name: z.string(),
+  latest_run: EvalSuiteRun.nullable(),
+});
+export type EvalAgentSummary = z.infer<typeof EvalAgentSummary>;

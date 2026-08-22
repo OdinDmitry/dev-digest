@@ -1,0 +1,18 @@
+{
+  "name": "Eval Dashboard lists one run list, filtered by the selected agent",
+  "description": "Opens /eval from the sidebar (AC-62's nav entry) and confirms the dashboard's own agent-summary copy renders with the seeded Security Reviewer's row stating its latest run's version, then selects that agent and confirms the run list is now scoped to it (AC-64) — the compare control only renders once an agent is selected (AC-30/SPEC-04's edge case), and the agent's own older seeded run (v1) is present in the now-filtered list. SPEC-04 collapsed the dashboard's former two lists into one (AC-62), so the old final step asserting a cost value on the premise that 'the Recent runs list carries no cost column' no longer applies — that premise died with the unified list, and the step is dropped rather than re-pointed.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to the seeded repo's PR list" },
+    { "cmd": ["find", "text", "Eval Dashboard", "click"], "label": "follow the sidebar's Eval Dashboard link" },
+    { "cmd": ["wait", "--url", "/eval"], "label": "eval dashboard route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agent summaries and the run list settle" },
+    { "cmd": ["wait", "--text", "Select an agent to see its own run history."], "label": "the dashboard's own agent-picker copy renders" },
+    { "cmd": ["wait", "--text", "Security Reviewer"], "label": "the seeded agent's summary row is listed" },
+    { "cmd": ["wait", "--text", "· v2"], "label": "AC-63: that row states its latest run's configuration version" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "select the seeded Security Reviewer's summary row" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the filtered run list settles" },
+    { "cmd": ["wait", "--text", "Compare"], "label": "AC-64: the run list is now scoped to one agent — the compare control only renders while an agent is selected" },
+    { "cmd": ["wait", "--text", "v1"], "label": "the agent's own older seeded run (agent v1) is present in the now-filtered list" }
+  ]
+}

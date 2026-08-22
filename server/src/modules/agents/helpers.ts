@@ -68,6 +68,37 @@ export function mergeAgentStats(
   }));
 }
 
+/**
+ * The narrow, camelCase slice of an agent's stored config that a replay-style
+ * caller outside this module needs (currently `EvalRunner` — see
+ * `modules/eval/runner.ts`) — never the row itself
+ * (`onion-architecture` § "Row types ... die at the repository boundary").
+ * Structurally identical to `EvalRunner`'s own `EvalAgentConfig`, which is how
+ * the two stay in sync without `modules/agents` importing anything from
+ * `modules/eval`.
+ */
+export interface AgentConfig {
+  id: string;
+  name: string;
+  version: number;
+  provider: Provider;
+  model: string;
+  systemPrompt: string;
+}
+
+/** Map a persisted agent row down to `AgentConfig`. The one place a row gets
+ *  narrowed to this shape — used by `AgentsRepository.getConfigById`. */
+export function toAgentConfig(row: AgentRow): AgentConfig {
+  return {
+    id: row.id,
+    name: row.name,
+    version: row.version,
+    provider: row.provider as Provider,
+    model: row.model,
+    systemPrompt: row.systemPrompt,
+  };
+}
+
 /** Fields whose change bumps the agent's config version (anything but `enabled`). */
 export interface ConfigChangePatch {
   name?: string;

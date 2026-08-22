@@ -28,7 +28,9 @@
       "cost": "Cost"
     },
     "pass": "pass",
-    "fail": "fail"
+    "fail": "fail",
+    "agentsHeading": "Agents",
+    "selectAgentHint": "Select an agent to see its own run history."
   },
   "caseEditor": {
     "newCase": "New eval case",
@@ -60,6 +62,8 @@
   "evalsTab": {
     "metricsTitle": "Eval metrics",
     "metricsSubtitle": "Recall / Precision / Citation for this agent's eval cases",
+    "noRunYet": "No run has happened yet.",
+    "casesPassing": "{passed} / {total} passing",
     "casesHeading": "Eval cases",
     "newCase": "New case",
     "loadingCases": "Loading cases…",
@@ -71,7 +75,61 @@
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "runControlLabel": "Run eval set ({count} cases)",
+    "progress": "{completed} of {total} cases run",
+    "editCaseLabel": "Edit {name}",
+    "deleteCaseLabel": "Delete {name}",
+    "editNameLabel": "Case name",
+    "saveEdit": "Save",
+    "cancelEdit": "Cancel",
+    "verifyCaseLabel": "Verify {name}",
+    "verify": "Verify",
+    "verifying": "Verifying…",
+    "resultLine": "expected {expected, plural, one {# finding} other {# findings}}, got {got, plural, one {# finding} other {# findings}}",
+    "expectationHeading": "Expected outcome",
+    "lastResultHeading": "Findings returned in the most recent result",
+    "noResultYet": "This case hasn't been run yet.",
+    "noFindingsInResult": "No findings were returned in this result.",
+    "grounded": "grounded",
+    "ungrounded": "ungrounded"
+  },
+  "compare": {
+    "title": "Compare runs · v{earlier} → v{later}",
+    "cost": "COST",
+    "promptDiffHeading": "System prompt diff",
+    "promptUnavailable": "The prompt diff can't be shown — a compared configuration version no longer exists.",
+    "diffTooLarge": "Too large to diff.",
+    "diffEmpty": "No difference.",
+    "caseSetsDiffer": "These two runs did not cover the same set of eval cases.",
+    "skillsDiffer": "These two runs invoked different skills: {list}",
+    "close": "Close"
+  },
+  "runHistory": {
+    "compare": "Compare",
+    "empty": "No runs yet.",
+    "version": "Version",
+    "incomplete": "Incomplete",
+    "selectRunLabel": "Select the run started {when}, agent v{version}, for comparison",
+    "notAvailable": "not available"
+  },
+  "caseModal": {
+    "title": "Turn into eval case",
+    "subtitle": "{agent} · freezes this finding's diff fragment as a labelled case",
+    "existingNotice": "This finding already has an eval case. Edit it from the agent's Evals tab to change it.",
+    "nameLabel": "Name",
+    "locationLabel": "Location",
+    "fragmentLabel": "Diff fragment",
+    "expectationLabel": "Expected outcome",
+    "kind": {
+      "must_find": "Must find — the agent should flag this",
+      "must_not_flag": "Must not flag — this is not a real issue"
+    },
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Create eval case",
+    "creating": "Creating…",
+    "loadError": "Couldn't load a draft for this finding."
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",

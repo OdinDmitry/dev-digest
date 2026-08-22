@@ -3,7 +3,7 @@ import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
-import { isConfigChange } from './helpers.js';
+import { isConfigChange, toAgentConfig, type AgentConfig } from './helpers.js';
 
 /**
  * A2 — agents data-access. Owns `agents`, `agent_versions`, and the
@@ -13,6 +13,7 @@ import { isConfigChange } from './helpers.js';
 
 import type { AgentRow, AgentVersionRow } from '../../db/rows.js';
 export type { AgentRow, AgentVersionRow };
+export type { AgentConfig } from './helpers.js';
 
 export interface InsertAgent {
   workspaceId: string;
@@ -68,6 +69,14 @@ export class AgentsRepository {
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)));
     return row;
+  }
+
+  /** Same workspace-scoped lookup as `getById`, narrowed to `AgentConfig`
+   *  before it leaves this repository — the row itself never crosses into a
+   *  `service.ts` or another module's ring-2 file. */
+  async getConfigById(workspaceId: string, id: string): Promise<AgentConfig | undefined> {
+    const row = await this.getById(workspaceId, id);
+    return row ? toAgentConfig(row) : undefined;
   }
 
   /** Delete an agent (scoped to workspace). Versions/skill-links cascade;
