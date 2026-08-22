@@ -1,5 +1,5 @@
 ---
-description: Run an approved Development Plan end to end — implement, review, cover with tests, fix, verify. Takes the plan path, plus optional design mockups and extra requirements.
+description: Run an approved Development Plan end to end — implement, architecture + security review, cover with tests, fix, verify. Same as /impl but includes security-reviewer in Phase 2.
 argument-hint: <plan-path> [--designs <path…>] [--spec <path>] [extra requirements…]
 ---
 
@@ -14,6 +14,10 @@ Invocation: `$ARGUMENTS`
 `spec-creator` and `implementation-planner` are **out of scope** — they are run
 by hand, before this command, and reviewed by a human. If no plan exists yet,
 stop and say so; do not write one, and do not implement from a spec directly.
+
+This command is `/impl` **plus** `security-reviewer` in Phase 2 and security
+findings in the fix loop. For the default chain without security review, use
+[`impl.md`](impl.md).
 
 ---
 
@@ -72,10 +76,10 @@ Plan path: … (reference only — do not read in full)
 <copy Verification → Fast loop bullets>
 ```
 
-### Architecture-reviewer handoff
+### Architecture-reviewer and security-reviewer handoff
 
 Baseline SHA, `git diff <baseline-sha>...` scope (plus untracked files if
-any). No plan.
+any). No plan. Both reviewers get the same diff scope.
 
 ### Plan-verifier handoff
 
@@ -83,9 +87,9 @@ Plan path + spec path — **full read required** (unchanged).
 
 ### Implementer fix-mode handoff (Phase 3 / Phase 4 gaps)
 
-Findings report (architecture and/or test-writer defects), plan path for
-reference only, instruction to fix exactly those findings and **not** re-read
-the full plan unless a finding requires plan context.
+Findings report (architecture, security, and/or test-writer defects), plan path
+for reference only, instruction to fix exactly those findings and **not**
+re-read the full plan unless a finding requires plan context.
 
 ---
 
@@ -148,19 +152,22 @@ against it are worse than none.
 
 ## Phase 2 — review and cover, in parallel
 
-Spawn both in a single message. They are safe together:
-`architecture-reviewer` is read-only, and `test-writer` touches only test
-files, so their writes cannot collide.
+Spawn all three in a single message. They are safe together:
+`architecture-reviewer` and `security-reviewer` are both read-only, and
+`test-writer` touches only test files, so their writes cannot collide.
 
-- **`architecture-reviewer`** — paste the architecture-reviewer handoff
-  (baseline SHA + diff scope), not the plan.
+- **`architecture-reviewer`** — paste the reviewer handoff (baseline SHA +
+  diff scope), not the plan.
+- **`security-reviewer`** — same diff scope as architecture-reviewer. It is a
+  repo-agent, not the `/security-review` skill or the DB-stored in-product
+  reviewer — a Claude Code subagent producing plain-text findings.
 - **`test-writer`** — paste the **Test-writer handoff** block prepared in
   Phase 0. Do not tell it to re-read the full plan or scan Traceability
   itself.
 
 ## Phase 3 — one fix loop, fed by all reports
 
-Two kinds of signal arrive, and they go into the **same** `implementer`
+Three kinds of signal arrive, and they go into the **same** `implementer`
 fix-mode call — one call per iteration, not one per report:
 
 1. **Architecture findings**, by grade:
@@ -169,17 +176,25 @@ fix-mode call — one call per iteration, not one per report:
      specified; then report it instead.
    - **SUGGESTION** — never fix here. Pass it to the final report untouched.
      Acting on suggestions is how a fix loop turns into an unplanned refactor.
-2. **Implementation bugs `test-writer` found.** It stops rather than editing
+2. **Security findings**, by the same three-grade rule as architecture
+   findings above — `security-reviewer` uses this repo's identical
+   `CRITICAL`/`WARNING`/`SUGGESTION` scale, not the preloaded skill's
+   four-level one, precisely so this gate applies unchanged. A `CRITICAL`
+   security finding is never left for the final report; it blocks the same
+   way an unfixed architecture `CRITICAL` does.
+3. **Implementation bugs `test-writer` found.** It stops rather than editing
    implementation code, so a report saying a test fails because the code is
    wrong is a real defect — send it to the fixer with the failing test named.
 
-Send both via the **Implementer fix-mode handoff** — findings list, plan path
-for reference, instruction to fix exactly those and not re-read the full plan.
+Send all three via the **Implementer fix-mode handoff** — combined findings
+list, plan path for reference, instruction to fix exactly those and not
+re-read the full plan.
 
 After the fixes:
 
-- Re-run `architecture-reviewer` on **only the files the fix touched**, not
-  the original diff. A re-review of unchanged code buys nothing.
+- Re-run `architecture-reviewer` and `security-reviewer` on **only the files
+  the fix touched**, not the original diff. A re-review of unchanged code
+  buys nothing.
 - If a fix moved, renamed, or changed the signature of anything a new test
   imports, re-run `test-writer` **scoped to the affected test files only** — it
   owns those files, and `implementer` must not repair them itself.
@@ -234,6 +249,10 @@ explicitly:
 - <n> findings — <n> fixed over <n> iteration(s), <n> escalated
 - Unfixed: <grade> <title> — <file:line> — why it was left
 
+## Security review
+- <n> findings — <n> fixed over <n> iteration(s), <n> escalated
+- Unfixed: <grade> <title> — <file:line> — why it was left
+
 ## Verification
 - <command> — pass/fail
 - Not performed: <manual/browser bullet, verbatim> — needs a human
@@ -244,9 +263,8 @@ explicitly:
 - Anything escalated, and what it is waiting on
 
 ## Not done by this command
-- Security review — run `/impl-sec` on the same plan (includes
-  `security-reviewer` in Phase 2), or the `/security-review` skill for a
-  broader out-of-diff pass
+- A deeper, out-of-diff security audit — `security-reviewer` only sees this
+  run's diff; run the `/security-review` skill for a broader pass
 - Docs — run `doc-writer` if the feature needs more than a CLAUDE.md line
 - `pr-self-review` before `gh pr create` (a hook enforces this)
 ```
@@ -259,8 +277,8 @@ above is outstanding.
 
 ## Cost discipline
 
-Eleven subagent calls is a normal upper bound for a mid-sized plan (1–3
-implementers, 2 in the review/cover phase, 1–2 fixes, 1–2 re-checks, 1–2
+Twelve subagent calls is a normal upper bound for a mid-sized plan (1–3
+implementers, 3 in the review/cover phase, 1–2 fixes, 1–2 re-checks, 1–2
 verifies). If you find yourself about to exceed that, stop and ask instead — a
 chain that keeps looping is a signal about the plan, not a reason to keep
 spending.

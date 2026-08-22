@@ -29,8 +29,13 @@ web :3000). Per-package commands live in each module's own CLAUDE.md.
 - [.claude/agents/README.md](.claude/agents/README.md) — the agent chain that
   produces and consumes both.
 - `/impl <plan-path>` ([.claude/commands/impl.md](.claude/commands/impl.md)) —
-  runs an approved plan end to end: implement → review ∥ tests → fix loop →
-  verify. `spec-creator` and `implementation-planner` stay manual, by design.
+  runs an approved plan end to end: implement → architecture review ∥ tests →
+  fix loop → verify. `spec-creator` and `implementation-planner` stay manual,
+  by design.
+- `/impl-sec <plan-path>`
+  ([.claude/commands/impl-sec.md](.claude/commands/impl-sec.md)) — same chain
+  with `security-reviewer` in Phase 2; use for auth, input handling, secrets,
+  or new API surface.
 
 ## Evals — self-check after harness changes
 The harness (skills, subagents, `CLAUDE.md`) is testable like any other code.

@@ -34,6 +34,12 @@ criterion ships unproven.
 `test-writer`, and a **Full** block — including the Docker-backed
 `pnpm test:integration` — run once at the end by `plan-verifier`.
 
+During `/impl`, the orchestrator reads the plan once and passes **handoff
+slices** (task lists, Traceability rows, Fast loop) to subagents in spawn
+prompts — only `plan-verifier` reads the full plan and spec. Keep task
+bullets handoff-sized (file references, not embedded schemas); see
+`implementation-planner` Constraints.
+
 Files numbered `000N-*.md` predate this convention — they were written when
 plans lived in a root `specs/` folder and no spec layer existed. Left as-is;
 new plans use the dated naming.
