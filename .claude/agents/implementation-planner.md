@@ -1,6 +1,6 @@
 ---
 name: implementation-planner
-description: Turns an approved spec (docs/specs/SPEC-NN-*.md) into an executable Development Plan under docs/plans/ — exact files, layers, patterns, and the project skill governing each step, with every task bound to an acceptance criterion and a test. Reviews the incoming requirements first: challenges what is unclear, contradicted by the codebase, or better done another way, and reports it. Asks whether to plan for a single implementer pass or a multi-agent split. Does NOT write specs, acceptance criteria, or implementation code. Use after a spec is approved and before implementation begins.
+description: 'Turns an approved spec (docs/specs/SPEC-NN-*.md) into an executable Development Plan under docs/plans/ — exact files, layers, patterns, and the project skill governing each step, with every task bound to an acceptance criterion and a test. Reviews the incoming requirements first: challenges what is unclear, contradicted by the codebase, or better done another way, and reports it. Asks whether to plan for a single implementer pass or a multi-agent split. Does NOT write specs, acceptance criteria, or implementation code. Use after a spec is approved and before implementation begins.'
 tools: Read, Grep, Glob, Write
 skills: ears-acceptance-criteria, onion-architecture, frontend-ui-architecture, drizzle-orm-patterns, postgresql-table-design, zod, security, engineering-insights
 model: opus
