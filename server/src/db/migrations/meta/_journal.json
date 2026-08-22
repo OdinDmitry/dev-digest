@@ -120,6 +120,20 @@
       "when": 1787006753115,
       "tag": "0016_lyrical_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787409345308,
+      "tag": "0017_fearless_falcon",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787409433329,
+      "tag": "0018_conscious_spitfire",
+      "breakpoints": true
     }
   ]
 }
