@@ -1,0 +1,12 @@
+{
+  "name": "Eval Dashboard renders its own empty state, not a route fallback",
+  "description": "Loads the app root, then clicks the sidebar's Eval Dashboard nav item and confirms /evals renders its OWN empty-agents copy — not merely that the URL changed. A build where the route wired up but rendered a generic fallback (or nothing) even though navigation succeeded would pass a URL-only check; the final text assertion is copy that exists only on this dashboard (client/src/app/evals/page.tsx via dashboard.emptyAgents), so it fails on that build. No control that starts a run is clicked — the hermetic seed has no eval cases and this flow must not trigger a model call.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "initial data fetch settles" },
+    { "cmd": ["find", "text", "Eval Dashboard", "click"], "label": "click the sidebar's Eval Dashboard nav item" },
+    { "cmd": ["wait", "--url", "/evals"], "label": "eval dashboard route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "dashboard fetch settles" },
+    { "cmd": ["wait", "--text", "No agent has an eval set yet."], "label": "the dashboard's own empty-agents copy renders — no other route has this text" }
+  ]
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Finding } from './findings.js';
 
 /**
  * Conformance, Onboarding, Eval, Memory, Conventions, Skills,
@@ -47,21 +48,92 @@ export const Onboarding = z.object({
 export type Onboarding = z.infer<typeof Onboarding>;
 
 // ---- Eval ----
+export const EvalExpectationKind = z.enum(['must_find', 'must_not_flag']);
+export type EvalExpectationKind = z.infer<typeof EvalExpectationKind>;
+
+export const EvalExpectation = z.object({
+  kind: EvalExpectationKind,
+  file: z.string().min(1),
+  start_line: z.number().int().min(0),
+  end_line: z.number().int().min(0),
+  title: z.string().nullish(), // display only
+  severity: z.string().nullish(), // display only (AC-56)
+  category: z.string().nullish(), // display only (AC-56)
+});
+export type EvalExpectation = z.infer<typeof EvalExpectation>;
+
+export const EvalCaseOrigin = z.object({
+  finding_id: z.string().nullable(),
+  pr_id: z.string().nullable(),
+  pr_number: z.number().int().nullable(),
+  finding_title: z.string().nullable(),
+});
+export type EvalCaseOrigin = z.infer<typeof EvalCaseOrigin>;
+
+export const EvalRunState = z.enum(['pending', 'running', 'completed', 'failed']);
+export type EvalRunState = z.infer<typeof EvalRunState>;
+
+export const EvalCaseStatus = z.enum(['pending', 'passed', 'failed', 'errored']);
+export type EvalCaseStatus = z.infer<typeof EvalCaseStatus>;
+
+export const EvalContextDocument = z.object({
+  repo_id: z.string().nullable(),
+  path: z.string(),
+  text: z.string(),
+});
+export type EvalContextDocument = z.infer<typeof EvalContextDocument>;
+
+export const EvalContextExclusion = z.object({ path: z.string(), reason: z.string() });
+export type EvalContextExclusion = z.infer<typeof EvalContextExclusion>;
+
+export const EvalCapturedContext = z.object({
+  documents: z.array(EvalContextDocument),
+  excluded: z.array(EvalContextExclusion),
+});
+export type EvalCapturedContext = z.infer<typeof EvalCapturedContext>;
+
+// The per-case result (a "trace" is a case). RESHAPED in place — see
+// docs/plans/2026-08-22-eval-pipeline-a-foundation.md Step 0.
 export const EvalPerTrace = z.object({
+  case_id: z.string().nullable(),
   name: z.string(),
+  status: EvalCaseStatus,
   pass: z.boolean(),
-  expected: z.unknown(),
-  actual: z.unknown(),
+  errored: z.boolean(),
+  error: z.string().nullable(),
+  findings: z.array(Finding), // grounded findings only
+  raw_findings_count: z.number().int(),
+  expected_count: z.number().int(), // AC-20 "expected"
+  matched_count: z.number().int(), // AC-20 "obtained"
+  cost_usd: z.number().nullable(),
+  duration_ms: z.number().int().nullable(),
+  stored: z.boolean(), // false for a preview (AC-33)
 });
 export type EvalPerTrace = z.infer<typeof EvalPerTrace>;
 
+// The suite-run session. RESHAPED in place. Metrics are `.nullable()` on
+// purpose: a failed run carries NO metrics — `nullable` says "absent", never
+// "zero" (`client/insights.md` 2026-07-30 on `?? 0` hiding "missing").
 export const EvalRun = z.object({
-  recall: z.number().min(0).max(1),
-  precision: z.number().min(0).max(1),
-  citation_accuracy: z.number().min(0).max(1),
+  id: z.string(),
+  agent_id: z.string(),
+  agent_name: z.string().nullable(),
+  state: EvalRunState,
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+  system_prompt: z.string(),
+  provider: z.string(),
+  model: z.string(),
+  strategy: z.string(),
+  skills: z.array(z.string()), // captured linked skill NAMES, link order
+  captured_context: EvalCapturedContext, // AC-53
+  recall: z.number().min(0).max(1).nullable(),
+  precision: z.number().min(0).max(1).nullable(),
+  citation_accuracy: z.number().min(0).max(1).nullable(),
   traces_passed: z.number().int(),
   traces_total: z.number().int(),
-  duration_ms: z.number().int(),
+  errored_count: z.number().int(),
+  duration_ms: z.number().int().nullable(),
   cost_usd: z.number().nullable(),
   per_trace: z.array(EvalPerTrace),
 });
@@ -70,16 +142,27 @@ export type EvalRun = z.infer<typeof EvalRun>;
 export const EvalOwnerKind = z.enum(['skill', 'agent']);
 export type EvalOwnerKind = z.infer<typeof EvalOwnerKind>;
 
+// The persisted case. RESHAPED in place.
 export const EvalCase = z.object({
   id: z.string(),
-  owner_kind: EvalOwnerKind,
-  owner_id: z.string(),
+  owner_kind: EvalOwnerKind, // always 'agent' in this feature
+  owner_id: z.string(), // the agent id
   name: z.string(),
   input_diff: z.string(),
-  input_files: z.unknown(),
-  input_meta: z.unknown(),
-  expected_output: z.unknown(),
-  notes: z.string().nullish(),
+  repo_id: z.string().nullable(),
+  repo_full_name: z.string().nullable(),
+  expectations: z.array(EvalExpectation),
+  polarity: EvalExpectationKind, // derived; all expectations share one kind
+  origin: EvalCaseOrigin.nullable(),
+  notes: z.string().nullable(),
+  // AC-50 (server half) — true iff repo_id !== null, i.e. a run of this case
+  // WOULD resolve project context. The client renders the "no repository, no
+  // context will be resolved" note text from this boolean rather than the
+  // server shipping prose (the client owns wording).
+  resolves_context: z.boolean(),
+  last_outcome: EvalPerTrace.nullable(), // AC-34; populated from Phase B on
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 export type EvalCase = z.infer<typeof EvalCase>;
 

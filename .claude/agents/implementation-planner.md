@@ -206,7 +206,9 @@ one module. Use today's date and a slug derived from the feature name, so
 plans are distinguishable at a glance. Written in **English**.
 
 Every task carries an ID, the acceptance criterion it satisfies, and the test
-that proves it:
+that proves it. Task bullets are copied verbatim into `/impl` spawn handoffs —
+keep them concise; reference existing files rather than pasting large code
+blocks (see **Handoff-sized task bullets** under Constraints in the template).
 
 ```markdown
 # Development Plan: <title>
@@ -223,6 +225,10 @@ Execution mode: single-agent | multi-agent (<n> tracks)
 
 ## Constraints
 - [from root/module CLAUDE.md, insights.md, do-not-touch lists, skills]
+- **Handoff-sized task bullets** — `/impl` copies task lines verbatim into
+  spawn prompts. Prefer `file:line` references over pasted schema or code
+  blocks; if a single task bullet would exceed ~2 KB, point at the source file
+  instead of embedding it.
 
 ## Entry points & duplicate registries
 - [every other place enumerating the same keys, with the task that covers it —

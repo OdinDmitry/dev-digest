@@ -1,0 +1,14 @@
+{
+  "name": "Agent editor Evals tab renders its own empty-cases state",
+  "description": "Opens the seeded Test Quality Reviewer and switches to its Evals tab. Guards reachability the same way 11-agent-context-tab.flow.json does: the tab button and the ?tab= whitelist on /agents/[id]/page.tsx are two separate places (client/insights.md 2026-08-17), and a build where they disagree would still change the URL while silently falling back to Config. So the URL assertion alone is not enough — the last step asserts on copy (evalsTab.emptyCases) that only the Evals tab renders. The hermetic seed has no eval cases for this agent, so this doubles as the empty-state check.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the seeded L02 agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Evals"], "label": "switch to the Evals tab" },
+    { "cmd": ["wait", "--url", "tab=evals"], "label": "tab state is in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "eval cases fetch settles" },
+    { "cmd": ["wait", "--text", "No eval cases yet."], "label": "the Evals tab's own empty-cases copy is visible — no other tab renders this text" }
+  ]
+}

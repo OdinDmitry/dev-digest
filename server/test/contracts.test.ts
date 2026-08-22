@@ -142,16 +142,48 @@ describe('AI contracts parse fixtures', () => {
         sections: [{ kind: 'architecture', title: 'T', body: 'b', links: [] }],
       }),
     ).not.toThrow();
+    // EvalRun is the suite-run SESSION shape (reshaped in
+    // docs/plans/2026-08-22-eval-pipeline-a-foundation.md Step 0) — a run
+    // owns many per-case results (`per_trace`), not one case's own pass/fail.
     expect(() =>
       EvalRun.parse({
+        id: 'run-1',
+        agent_id: 'agent-1',
+        agent_name: 'Security Reviewer',
+        state: 'completed',
+        started_at: '2026-08-22T00:00:00.000Z',
+        finished_at: '2026-08-22T00:01:00.000Z',
+        system_prompt: 'You review PRs for security issues.',
+        provider: 'openai',
+        model: 'gpt-4.1',
+        strategy: 'single-pass',
+        skills: ['sec-basics'],
+        captured_context: { documents: [], excluded: [] },
         recall: 0.82,
         precision: 0.91,
         citation_accuracy: 0.95,
         traces_passed: 17,
         traces_total: 20,
+        errored_count: 0,
         duration_ms: 12000,
         cost_usd: 0.23,
-        per_trace: [{ name: 't01', pass: true, expected: 'x', actual: 'x' }],
+        per_trace: [
+          {
+            case_id: 'case-1',
+            name: 't01',
+            status: 'passed',
+            pass: true,
+            errored: false,
+            error: null,
+            findings: [],
+            raw_findings_count: 1,
+            expected_count: 1,
+            matched_count: 1,
+            cost_usd: 0.01,
+            duration_ms: 600,
+            stored: true,
+          },
+        ],
       }),
     ).not.toThrow();
     expect(() =>

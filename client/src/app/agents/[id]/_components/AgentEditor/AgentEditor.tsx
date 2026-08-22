@@ -9,6 +9,7 @@ import type { Agent } from "@devdigest/shared";
 import { ContextAttachPanel } from "@/components/context-attach/ContextAttachPanel";
 import { ConfigTab } from "./_components/ConfigTab";
 import { SkillsTab } from "./_components/SkillsTab";
+import { EvalsTab } from "./_components/EvalsTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -26,6 +27,8 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
           <SkillsTab agent={agent} />
         ) : tab === "context" ? (
           <ContextAttachPanel ownerKind="agent" ownerId={agent.id} hint={tc("orderHint")} />
+        ) : tab === "evals" ? (
+          <EvalsTab agentId={agent.id} />
         ) : (
           <ConfigTab agent={agent} />
         )}

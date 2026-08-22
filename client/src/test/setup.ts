@@ -14,3 +14,20 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 if (typeof Element.prototype.scrollIntoView !== "function") {
   Element.prototype.scrollIntoView = () => {};
 }
+
+// jsdom does not implement matchMedia — stub it so components that read
+// `prefers-reduced-motion` (e.g. EvalsTab's progress indicator) don't throw.
+// Reports "no preference" (matches: false) by default.
+if (typeof window.matchMedia !== "function") {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList;
+}
