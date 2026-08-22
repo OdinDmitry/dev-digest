@@ -9,6 +9,8 @@ import {
   EvalCaseSeed,
   EvalComparison,
 } from '@devdigest/shared';
+import type { EvalCaseRow } from '../src/modules/evals/repository/case.repo.js';
+import { caseRowToDto } from '../src/modules/evals/helpers.js';
 import * as ServerKnowledge from '../src/vendor/shared/contracts/knowledge.js';
 import * as ServerEvalCi from '../src/vendor/shared/contracts/eval-ci.js';
 // Reaches across the package boundary into the client's OWN vendored copy —
@@ -81,6 +83,9 @@ const EVAL_CASE_FIXTURE = {
   polarity: 'must_find' as const,
   origin: { finding_id: 'f-1', pr_id: 'pr-1', pr_number: 482, finding_title: 'Hardcoded secret' },
   notes: null,
+  // AC-50 — added in Phase B; required (no `.default()`), see the "legacy
+  // eval-case shape" regression below for what happens without it.
+  resolves_context: true,
   last_outcome: null,
   created_at: '2026-08-22T00:00:00.000Z',
   updated_at: '2026-08-22T00:00:00.000Z',
@@ -256,5 +261,68 @@ describe('server and client vendored copies agree on the eval contracts', () => 
     const server = ServerEvalCi.EvalComparison.parse(EVAL_COMPARISON_FIXTURE);
     const client = ClientEvalCi.EvalComparison.parse(EVAL_COMPARISON_FIXTURE);
     expect(JSON.stringify(client)).toBe(JSON.stringify(server));
+  });
+});
+
+describe('legacy eval-case shape (T21 — the read path must cope with a Phase-A-era row)', () => {
+  // The exact response shape `GET /agents/:id/eval-cases` returned BEFORE
+  // this phase added `resolves_context` (AC-50) and populated `last_outcome`
+  // (AC-34) — a RAW object literal, not built through `EvalCase.parse()`.
+  // Parsing a fixture that already carries the new keys can never exercise
+  // this: it would trivially pass regardless of whether the two fields are
+  // actually required (`server/insights.md`, Recurring Errors 2026-08-17).
+  const LEGACY_EVAL_CASE = {
+    id: 'case-1',
+    owner_kind: 'agent' as const,
+    owner_id: 'agent-1',
+    name: 'Secret key case',
+    input_diff: 'diff --git a/src/config.ts b/src/config.ts',
+    repo_id: 'repo-1',
+    repo_full_name: 'acme/payments-api',
+    expectations: [EXPECTATION_FIXTURE],
+    polarity: 'must_find' as const,
+    origin: null,
+    notes: null,
+    created_at: '2026-08-22T00:00:00.000Z',
+    updated_at: '2026-08-22T00:00:00.000Z',
+    // Deliberately NO `resolves_context`, NO `last_outcome`.
+  };
+
+  it('EvalCase.safeParse fails LOUDLY on the legacy shape — both new fields are required, not defaulted', () => {
+    const result = EvalCase.safeParse(LEGACY_EVAL_CASE);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('resolves_context');
+      expect(paths).toContain('last_outcome');
+    }
+  });
+
+  it("the repository's own mapper (caseRowToDto) always supplies both fields, regardless of the row it maps", () => {
+    const row: EvalCaseRow = {
+      id: 'case-1',
+      workspaceId: 'ws-1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      name: 'Secret key case',
+      inputDiff: 'diff --git a/src/config.ts b/src/config.ts',
+      expectedOutput: [EXPECTATION_FIXTURE],
+      notes: null,
+      repoId: 'repo-1',
+      originFindingId: null,
+      originPrId: null,
+      originFindingTitle: null,
+      originPrNumber: null,
+      createdAt: new Date('2026-08-22T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-22T00:00:00.000Z'),
+    };
+
+    const dto = caseRowToDto(row, 'acme/payments-api', null);
+
+    expect(dto).toHaveProperty('resolves_context');
+    expect(dto).toHaveProperty('last_outcome');
+    // And what the mapper produces actually satisfies the contract — the
+    // read path is not just present-but-wrong.
+    expect(() => EvalCase.parse(dto)).not.toThrow();
   });
 });

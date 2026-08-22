@@ -17,6 +17,11 @@ import {
   type EvalCaseResultRow,
   type InsertEvalSuiteRun,
   type InsertEvalCaseResult,
+  type FrozenCaseInput,
+  type CaseResultOutcome,
+  type CompleteRunValues,
+  type FailRunValues,
+  type EvalDashboardRow,
 } from './run.repo.js';
 
 export type {
@@ -27,6 +32,11 @@ export type {
   EvalCaseResultRow,
   InsertEvalSuiteRun,
   InsertEvalCaseResult,
+  FrozenCaseInput,
+  CaseResultOutcome,
+  CompleteRunValues,
+  FailRunValues,
+  EvalDashboardRow,
 };
 
 export class EvalRepository {
@@ -88,5 +98,47 @@ export class EvalRepository {
 
   activeRunForAgent(workspaceId: string, agentId: string): Promise<EvalSuiteRunRow | undefined> {
     return this.runs.activeRunForAgent(workspaceId, agentId);
+  }
+
+  createRunWithFrozenCases(
+    values: InsertEvalSuiteRun,
+    cases: FrozenCaseInput[],
+  ): Promise<{ run: EvalSuiteRunRow; results: EvalCaseResultRow[] }> {
+    return this.runs.createRunWithFrozenCases(values, cases);
+  }
+
+  markRunning(runId: string): Promise<void> {
+    return this.runs.markRunning(runId);
+  }
+
+  recordCaseResult(runId: string, resultId: string, outcome: CaseResultOutcome): Promise<void> {
+    return this.runs.recordCaseResult(runId, resultId, outcome);
+  }
+
+  completeRun(runId: string, values: CompleteRunValues): Promise<EvalSuiteRunRow> {
+    return this.runs.completeRun(runId, values);
+  }
+
+  failRun(runId: string, values: FailRunValues): Promise<EvalSuiteRunRow> {
+    return this.runs.failRun(runId, values);
+  }
+
+  appendCapturedContext(runId: string, capturedContext: unknown): Promise<void> {
+    return this.runs.appendCapturedContext(runId, capturedContext);
+  }
+
+  getRunWithResults(
+    workspaceId: string,
+    runId: string,
+  ): Promise<{ run: EvalSuiteRunRow; results: EvalCaseResultRow[] } | undefined> {
+    return this.runs.getRunWithResults(workspaceId, runId);
+  }
+
+  lastOutcomeByCase(agentId: string): Promise<Map<string, EvalCaseResultRow>> {
+    return this.runs.lastOutcomeByCase(agentId);
+  }
+
+  dashboardRows(workspaceId: string): Promise<EvalDashboardRow[]> {
+    return this.runs.dashboardRows(workspaceId);
   }
 }

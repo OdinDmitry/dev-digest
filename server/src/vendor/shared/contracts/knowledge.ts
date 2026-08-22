@@ -155,7 +155,12 @@ export const EvalCase = z.object({
   polarity: EvalExpectationKind, // derived; all expectations share one kind
   origin: EvalCaseOrigin.nullable(),
   notes: z.string().nullable(),
-  last_outcome: EvalPerTrace.nullable(), // AC-34; null until Phase B, always null here
+  // AC-50 (server half) — true iff repo_id !== null, i.e. a run of this case
+  // WOULD resolve project context. The client renders the "no repository, no
+  // context will be resolved" note text from this boolean rather than the
+  // server shipping prose (the client owns wording).
+  resolves_context: z.boolean(),
+  last_outcome: EvalPerTrace.nullable(), // AC-34; populated from Phase B on
   created_at: z.string(),
   updated_at: z.string(),
 });

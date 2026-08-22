@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type {
   AssembledRunContext,
   EvalExpectation,
@@ -13,6 +13,26 @@ import {
   buildEvalReviewInput,
   contextInputFor,
 } from '../src/modules/evals/helpers.js';
+
+/**
+ * `EvalSuiteRunner.evaluateOne`'s call into `reviewPullRequest` — mocked at
+ * the `@devdigest/reviewer-core` module boundary so the ReviewInput object
+ * IT ACTUALLY BUILDS (via `buildEvalReviewInput`) can be inspected directly,
+ * rather than trusting that the runner uses the already-unit-tested helper
+ * correctly and adds nothing extra afterward (T17 — re-asserts AC-11 at the
+ * runner's call site, not just the helper's).
+ */
+const reviewPullRequestMock = vi.fn();
+vi.mock('@devdigest/reviewer-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@devdigest/reviewer-core')>();
+  return {
+    ...actual,
+    reviewPullRequest: (...args: Parameters<typeof actual.reviewPullRequest>) =>
+      reviewPullRequestMock(...args),
+  };
+});
+const { EvalSuiteRunner } = await import('../src/modules/evals/runner.js');
+type EvaluateOneInput = import('../src/modules/evals/runner.js').EvaluateOneInput;
 
 /**
  * Hermetic unit tests over `modules/evals/helpers.ts`
@@ -204,5 +224,99 @@ describe('contextInputFor (AC-49, T21)', () => {
     expect(resolve).toHaveBeenCalledWith('repo-123');
     expect(resolve).toHaveBeenCalledTimes(1);
     expect(result).toBe(assembled);
+  });
+});
+
+describe("EvalSuiteRunner.evaluateOne's assembled review input at the runner call site (T17, AC-11)", () => {
+  const DIFF = `diff --git a/src/config.ts b/src/config.ts
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -10,3 +10,4 @@
+   port: 3000,
++  stripeKey: "sk_live_xxx",
+   redisUrl: x,`;
+
+  afterEach(() => {
+    reviewPullRequestMock.mockReset();
+  });
+
+  it('carries exactly the captured system prompt, model, strategy, skills and documents (as specs) — and nothing else', async () => {
+    reviewPullRequestMock.mockResolvedValue({
+      review: { verdict: 'approve', summary: 'clean', score: 100, findings: [] },
+      dropped: [],
+      costUsd: 0.01,
+    });
+
+    const runner = new EvalSuiteRunner({
+      repo: {} as never,
+      agents: {} as never,
+      buildContext: () => ({}) as never,
+      llm: async () => ({}) as LLMProvider,
+    });
+
+    const input: EvaluateOneInput = {
+      systemPrompt: 'You review PRs for security issues.',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      strategy: 'single-pass',
+      skills: ['sec-basics'],
+      documents: [{ path: 'specs/a.md', text: 'a spec, verbatim' }],
+      inputDiff: DIFF,
+      expectations: [],
+      sessionId: 'eval:run-1:result-1',
+    };
+
+    await runner.evaluateOne(input);
+
+    expect(reviewPullRequestMock).toHaveBeenCalledTimes(1);
+    const reviewInput = reviewPullRequestMock.mock.calls[0]![0] as Record<string, unknown>;
+
+    // Exactly these keys — no callers/repoMap/prDescription/intent/task/memory,
+    // and skills/specs/sessionId only because THIS input supplied them.
+    expect(Object.keys(reviewInput).sort()).toEqual(
+      ['diff', 'llm', 'model', 'sessionId', 'skills', 'specs', 'strategy', 'systemPrompt'].sort(),
+    );
+    expect(reviewInput.systemPrompt).toBe(input.systemPrompt);
+    expect(reviewInput.model).toBe(input.model);
+    expect(reviewInput.strategy).toBe(input.strategy);
+    expect(reviewInput.skills).toEqual(input.skills);
+    expect(reviewInput.specs).toEqual(input.documents);
+    expect(reviewInput.sessionId).toBe(input.sessionId);
+  });
+
+  it('omits skills/specs/sessionId entirely (not as empty arrays / undefined keys) when the input carries none', async () => {
+    reviewPullRequestMock.mockResolvedValue({
+      review: { verdict: 'approve', summary: 'clean', score: 100, findings: [] },
+      dropped: [],
+      costUsd: 0.01,
+    });
+
+    const runner = new EvalSuiteRunner({
+      repo: {} as never,
+      agents: {} as never,
+      buildContext: () => ({}) as never,
+      llm: async () => ({}) as LLMProvider,
+    });
+
+    const input: EvaluateOneInput = {
+      systemPrompt: 'You review PRs.',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      strategy: 'single-pass',
+      skills: [],
+      documents: [],
+      inputDiff: DIFF,
+      expectations: [],
+      sessionId: 'eval:run-2:result-1',
+    };
+
+    await runner.evaluateOne(input);
+
+    const reviewInput = reviewPullRequestMock.mock.calls[0]![0] as Record<string, unknown>;
+    expect(Object.keys(reviewInput)).not.toContain('skills');
+    expect(Object.keys(reviewInput)).not.toContain('specs');
+    for (const forbidden of ['callers', 'repoMap', 'prDescription', 'intent', 'task', 'memory']) {
+      expect(Object.keys(reviewInput)).not.toContain(forbidden);
+    }
   });
 });
