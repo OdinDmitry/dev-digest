@@ -14,6 +14,14 @@ do without re-investigating.
 
 ## Codebase Patterns
 
+- **Finding line ranges are normalized twice**: `normalizeLineRange` /
+  `normalizeFindingLines` in `@devdigest/shared` `contracts/findings.ts`
+  (Zod `.transform` on `Finding` at LLM parse time + `.describe` on line fields
+  for JSON Schema). `groundFindings` calls `normalizeFindingLines` again before
+  the citation gate so callers that bypass Zod (tests, mocks) still persist
+  `start_line <= end_line`. Extend transport shapes with `FindingBase.extend()`,
+  not `Finding.extend()` — `Finding` is a `ZodEffects` after transform.
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

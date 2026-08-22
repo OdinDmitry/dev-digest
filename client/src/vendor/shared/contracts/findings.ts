@@ -40,18 +40,50 @@ export const TrifectaEvidence = z.object({
 });
 export type TrifectaEvidence = z.infer<typeof TrifectaEvidence>;
 
+/** Canonical [start, end] for storage, UI, and GitHub inline-comment anchors. */
+export function normalizeLineRange(
+  start: number,
+  end: number,
+): { start_line: number; end_line: number } {
+  if (start <= end) return { start_line: start, end_line: end };
+  // Common model mistake: start=158, end=1 on a single-line citation.
+  if (end === 1 && start > 1) return { start_line: start, end_line: start };
+  return { start_line: Math.min(start, end), end_line: Math.max(start, end) };
+}
+
+/** Apply {@link normalizeLineRange} to any object carrying start_line/end_line. */
+export function normalizeFindingLines<T extends { start_line: number; end_line: number }>(
+  f: T,
+): T {
+  const { start_line, end_line } = normalizeLineRange(f.start_line, f.end_line);
+  return start_line === f.start_line && end_line === f.end_line
+    ? f
+    : { ...f, start_line, end_line };
+}
+
 /**
  * Finding — the atomic review unit. `start_line`/`end_line` are used by the
  * citation-grounding gate (must intersect a real diff hunk for diff-findings).
  */
-export const Finding = z.object({
+/** Base finding fields — use this (not {@link Finding}) when extending with `.extend()`. */
+export const FindingBase = z.object({
   id: z.string(),
   severity: Severity,
   category: FindingCategory,
   title: z.string(),
   file: z.string(),
-  start_line: z.number().int(),
-  end_line: z.number().int(),
+  start_line: z
+    .number()
+    .int()
+    .describe(
+      'First line of the cited range (1-based, new-file side). Must be <= end_line.',
+    ),
+  end_line: z
+    .number()
+    .int()
+    .describe(
+      'Last line of the cited range (1-based). For a single line, set equal to start_line.',
+    ),
   rationale: z.string(), // markdown
   suggestion: z.string().nullish(), // markdown
   confidence: z.number().min(0).max(1),
@@ -60,6 +92,8 @@ export const Finding = z.object({
   trifecta_components: z.array(TrifectaComponent).nullish(),
   evidence: z.array(TrifectaEvidence).nullish(),
 });
+
+export const Finding = FindingBase.transform(normalizeFindingLines);
 export type Finding = z.infer<typeof Finding>;
 
 /** Review — the consolidated structured output of a single agent run. */

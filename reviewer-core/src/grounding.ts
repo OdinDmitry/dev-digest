@@ -1,4 +1,4 @@
-import type { Finding, UnifiedDiff } from '@devdigest/shared';
+import { normalizeFindingLines, type Finding, type UnifiedDiff } from '@devdigest/shared';
 
 /**
  * Citation grounding — the mandatory mechanical gate for diff-findings.
@@ -55,7 +55,8 @@ export function groundFindings(findings: Finding[], diff: UnifiedDiff): Groundin
   const kept: Finding[] = [];
   const dropped: { finding: Finding; reason: string }[] = [];
 
-  for (const finding of findings) {
+  for (const raw of findings) {
+    const finding = normalizeFindingLines(raw);
     const isFullFile = finding.kind ? FULL_FILE_KINDS.has(finding.kind) : false;
 
     if (!filesInDiff.has(finding.file)) {

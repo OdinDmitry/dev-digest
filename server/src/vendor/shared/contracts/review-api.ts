@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Finding, Verdict } from './findings.js';
+import { FindingBase, Verdict } from './findings.js';
 import { Intent, SmartDiff } from './brief.js';
 
 /**
@@ -12,7 +12,7 @@ import { Intent, SmartDiff } from './brief.js';
  * state and the `review_id` it belongs to.
  */
 
-export const FindingRecord = Finding.extend({
+export const FindingRecord = FindingBase.extend({
   review_id: z.string(),
   accepted_at: z.string().nullable(),
   dismissed_at: z.string().nullable(),
