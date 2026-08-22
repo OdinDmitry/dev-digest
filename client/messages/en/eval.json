@@ -28,7 +28,24 @@
       "cost": "Cost"
     },
     "pass": "pass",
-    "fail": "fail"
+    "fail": "fail",
+    "emptyAgents": "No agent has an eval set yet.",
+    "runAllAgents": "Run all agents",
+    "runAllConfirmTitle": "Run every agent's eval set?",
+    "runAllConfirmBody": "This will start {agents} agent runs and evaluate {cases} cases.",
+    "neverRun": "Never run",
+    "inProgress": "Run in progress — showing the last completed run",
+    "progress": "{done} of {total} cases evaluated",
+    "compare": "Compare",
+    "compareTitle": "Compare runs",
+    "promptDiff": "System prompt diff",
+    "caseSetsDiffer": "These runs evaluated different case sets — {earlier} cases and {later} cases.",
+    "contextDiffers": "These runs used different project context.",
+    "selectRun": "Select the run started at {at} for comparison",
+    "runFailed": "Run failed — every case errored, so no metrics were computed.",
+    "deltaUp": "up {value}",
+    "deltaDown": "down {value}",
+    "deltaNone": "no earlier run to compare"
   },
   "caseEditor": {
     "newCase": "New eval case",
@@ -55,7 +72,14 @@
     "invalidJson": "invalid JSON",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s",
+    "positiveBanner": "POSITIVE CASE — MUST find \"{title}\" at {file}:{line}",
+    "negativeBanner": "NEGATIVE CASE — MUST NOT flag {file}:{line}",
+    "forbiddenZones": "Forbidden zones (read-only)",
+    "repoLabel": "Repository",
+    "repoNone": "No repository — no project context",
+    "expectedInvalid": "Expected output must be a non-empty list of expectations of one kind, each with a file, a start line and an end line.",
+    "announceComplete": "Eval run finished: {outcome}"
   },
   "evalsTab": {
     "metricsTitle": "Eval metrics",
@@ -71,7 +95,16 @@
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "viewDashboard": "View full dashboard",
+    "runAll": "Run all evals",
+    "subtext": "expected {expected}, got {got}",
+    "errored": "errored",
+    "previewNotStored": "Preview — not stored",
+    "noContext": "No project context will be resolved for this case.",
+    "runCaseAria": "Run the eval case {name}",
+    "editCaseAria": "Edit the eval case {name}",
+    "deleteCaseAria": "Delete the eval case {name}"
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",
