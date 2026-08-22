@@ -97,8 +97,22 @@ describe("RunHistoryTable", () => {
     // Direction words, not colour alone (NFR).
     expect(screen.getByText("up 5pts")).toBeInTheDocument(); // recall +0.05
     expect(screen.getByText("down 3pts")).toBeInTheDocument(); // precision -0.03
-    expect(screen.getByText("up 0pts")).toBeInTheDocument(); // citation_accuracy 0 → up (delta >= 0)
+    expect(screen.getByText("unchanged")).toBeInTheDocument(); // citation_accuracy 0
     expect(screen.getByText("down $0.01")).toBeInTheDocument(); // cost -0.01
+    // Cost drop is an improvement — green, even though the arrow points down.
+    expect(screen.getByText("down $0.01").closest("[data-delta-tone]")).toHaveAttribute(
+      "data-delta-tone",
+      "good",
+    );
+    // Rate drop stays a regression.
+    expect(screen.getByText("down 3pts").closest("[data-delta-tone]")).toHaveAttribute(
+      "data-delta-tone",
+      "bad",
+    );
+    expect(screen.getByText("unchanged").closest("[data-delta-tone]")).toHaveAttribute(
+      "data-delta-tone",
+      "flat",
+    );
 
     // The earliest run has no earlier run to diff against.
     expect(screen.getAllByText("no earlier run to compare")).toHaveLength(4); // recall/precision/citation/cost cells

@@ -31,13 +31,14 @@ a change moved recall, precision and citation accuracy up or down.
 Two properties make this worth specifying rather than prompting for. First,
 **scoring must not involve a model** — an eval whose judge is itself a model
 inherits the judge's variance and cannot be a regression signal. Scoring here is
-mechanical: an expectation is a file plus a line interval, and a match is an
-overlap. Second, **a case must be reproducible** — its input is a frozen diff
-plus the agent's own configuration, so a run six weeks later measures the agent,
-not the state of a pull request or of the repository index. The one input that
-cannot be frozen this way is the text of the agent's project-context documents,
-which is read from the working copy each time; that limitation is named, and
-mitigated by capturing the text each run used, rather than hidden.
+mechanical **content-trigger**: a positive case passes when the agent produces at
+least one grounded finding on the frozen input; a negative case passes when it
+produces none. Expectation file/line fields are provenance for the UI, not a
+match key. Second, **a case must be reproducible** — its input is a frozen diff
+plus the agent's system prompt, model, strategy and linked skills, so a run six
+weeks later measures the agent configuration, not the state of a pull request or
+of the repository index. Project-context attachments are intentionally excluded
+from eval invocation (content-only, like the harness `evals/` quality tier).
 
 ## Goals / Non-goals
 
@@ -50,12 +51,12 @@ mitigated by capturing the text each run used, rather than hidden.
   building up an eval set of arbitrary size this way.
 - Run an agent over its whole eval set as a background job, score every case
   mechanically, and store the run with its aggregate metrics.
-- Evaluate the agent **as configured** — its system prompt, model, review
-  strategy, linked skills and project-context attachments — over the case's
-  frozen diff, so that a run measures the whole agent rather than a bare prompt.
-- Capture, with each run, the project-context documents it actually used,
-  including their text, so that a run remains auditable after the working copy
-  those documents were read from has changed.
+- Evaluate the agent **as configured for content-only eval** — its system
+  prompt, model, review strategy and linked skills — over the case's frozen
+  diff, without project-context attachments, so a run measures the agent's
+  authored behaviour on a self-contained snippet.
+- Capture, with each run, that project context was not resolved (empty captured
+  context), so comparisons stay honest about what entered the prompt.
 - Run a single case as a throwaway preview that is never stored.
 - Present, per agent, the metrics of the most recent completed run and their
   movement against the run before it.
@@ -70,16 +71,20 @@ mitigated by capturing the text each run used, rather than hidden.
   request description and body, and the derived PR intent are all excluded from
   an eval invocation. None of them is resolvable from a frozen diff with no pull
   request behind it and no current index, and including any of them would make a
-  run non-reproducible. Project-context attachments are **not** in this list:
-  they are authored configuration, part of what the agent *is*, in the same way
-  its linked skills are — see the reversal recorded in the decisions table.
+  run non-reproducible. Project-context attachments are **also** excluded from
+  eval invocation: cases are content-only fixtures (frozen diff + agent prompt /
+  skills), so attachment text read from a live working copy cannot change a
+  score.
 - **Any model call inside scoring.** No model judges a case, an expectation, a
-  match or a metric — ever, on any path.
+  match or a metric — ever, on any path. A semantic practices judge (as in the
+  harness `evals/` package) is out of scope; content-trigger polarity is the
+  deterministic stand-in.
 - **Agent version labels.** A run is identified by its own identity and the time
   it started. The `v6`/`v7` labels visible in mockups 2, 3 and 4 are not
   rendered anywhere, and nothing in this feature reads or produces them.
-- **Semantic matching.** Two different problems reported on the same lines count
-  as a match. This is an accepted limitation of the MVP, not an oversight.
+- **Zone-overlap matching as a pass key.** Expectation file and line intervals
+  are provenance (seeded from a finding) and may be shown in the UI; they do not
+  decide pass or fail.
 - **Eval cases owned by anything other than an agent.** No workspace-level,
   skill-level or repository-level eval sets.
 - Mockup elements deliberately not built: the **Learn** and **Reply to author**
@@ -195,29 +200,21 @@ origin note recording the finding and pull request it was seeded from. A case is
 owned by exactly one agent. Its frozen diff is a fixed text captured at creation
 and never refreshed from the repository.
 
-**Repository association** — the repository whose project-context attachments
-apply to this case. It exists because an attachment is scoped to a repository and
-a document path within it, and context resolution keeps only the attachments of
-the repository being reviewed; a case has no pull request, so without this
-association every attachment would be discarded and the case's context would be
-silently empty (AC-49, AC-50). A case seeded from a finding takes the repository
-of that finding's pull request (AC-46); a case created by hand takes the
-repository its author selected (AC-47). The association selects context and
-nothing else: it never causes the repository to be read for diff, index or pull
-request data.
+**Repository association** — optional and unused for eval assembly. Eval
+invocation never resolves project-context attachments (AC-11, AC-49): every case
+is a content-only fixture. New cases are stored with `repo_id` null (AC-46,
+AC-47). A stored association on an older row does not change assembly.
 
 **Expectation** — carries a kind (*must find* or *must not flag*), a
 repository-relative file path, a start line, an end line, and optionally a title,
 a severity and a category that exist only for display. All expectations of one
 case are of the same kind; the case's polarity is that kind.
 
-**Zone** — a file path plus a line interval, taken either from an expectation or
-from a finding. Matching is defined over zones only (AC-12). Paths are compared
-as repository-relative paths with forward slashes, after any diff-side prefix has
-been removed, and the comparison is **case-sensitive**. Case sensitivity is not a
-free choice: the existing citation-grounding gate that produces the findings
-being matched already compares paths by exact equality, and a matching rule that
-differed from it would disagree with the gate about which file a finding is in.
+**Zone** — a file path plus a line interval on an expectation, retained as
+**provenance** (where the seeding finding pointed) and for UI such as the
+forbidden-zones list. Zones are **not** used to decide pass or fail (AC-12).
+Grounded findings still carry their own file and lines for citation accuracy
+and display.
 
 **Suite run** — carries its own identity, the agent it ran for, the time it
 started, its state (pending, running, completed, failed), the system prompt,
@@ -288,10 +285,11 @@ order. Read them as names, not as positions.
   by the agent whose review run produced that finding.
 - **AC-6** WHEN the user activates the new-eval-case control on an agent's evals
   view, the system SHALL present an empty eval case dialog owned by that agent.
-- **AC-46** WHEN a case is created from a finding, the system SHALL associate it
-  with the repository of the pull request that finding came from.
+- **AC-46** WHEN a case is created from a finding, the system SHALL leave it
+  without a repository association for context resolution (`repo_id` null), while
+  still recording origin finding and pull-request identity for provenance.
 - **AC-47** WHEN the user saves an eval case that was not created from a finding,
-  the system SHALL associate it with the repository selected in the case dialog.
+  the system SHALL leave it without a repository association (`repo_id` null).
 
 **Expectations, the negative projection, and validation**
 
@@ -319,36 +317,35 @@ order. Read them as names, not as positions.
 
 - **AC-11** The input assembled for evaluating a case SHALL consist of that
   case's frozen diff together with the agent's system prompt, model identity,
-  review strategy, linked skills and project-context attachments as captured for
-  that evaluation, and SHALL contain nothing else.
-- **AC-49** IF a case has no repository association, THEN the input assembled for
-  evaluating it SHALL contain no project-context document.
-- **AC-50** IF a case has no repository association, THEN the system SHALL state
-  on that case that no project context will be resolved for it.
-- **AC-51** IF a project-context attachment cannot be read from the repository
-  working copy while a case's input is being assembled, THEN the system SHALL
-  continue evaluating that case without that document.
-- **AC-52** IF a project-context attachment of the agent is not included in a
-  case's assembled input, THEN the run SHALL record that attachment's path
-  together with the reason it was not included.
+  review strategy and linked skills as captured for that evaluation, and SHALL
+  contain no project-context document and nothing else derived from a live pull
+  request or repository index.
+- **AC-49** WHEN a case is evaluated, the input assembled for it SHALL contain no
+  project-context document, regardless of any stored repository association.
+- **AC-50** The system SHALL state on every eval case that no project context will
+  be resolved for it.
+- **AC-51** (retired for eval invocation) Project-context read failures do not
+  arise on the eval path because attachments are never resolved; retained only so
+  identifiers stay append-only.
+- **AC-52** A suite run's captured project context SHALL be empty of documents
+  when every case was evaluated without attachments.
 
 **Matching and scoring**
 
-- **AC-12** Two zones SHALL be treated as matching exactly when they name the
-  same file and the closed line ranges they cover overlap in at least one line.
+- **AC-12** Scoring a case SHALL ignore expectation file paths and line
+  intervals when deciding pass or fail; those fields are provenance only.
 - **AC-13** A case whose expectations are all of kind *must find* SHALL be
-  recorded as passed exactly when at least one grounded finding produced for that
-  case matches at least one of those expectations.
+  recorded as passed exactly when at least one grounded finding was produced for
+  that case.
 - **AC-14** A case whose expectations are all of kind *must not flag* SHALL be
-  recorded as passed exactly when no grounded finding produced for that case
-  matches any of those expectations.
+  recorded as passed exactly when no grounded finding was produced for that case.
 - **AC-15** The recall of a completed suite run SHALL equal the number of its
   *must find* cases recorded as passed divided by the number of its *must find*
   cases, and SHALL equal 1 when the run has no *must find* case.
-- **AC-16** The precision of a completed suite run SHALL equal the number of its
-  grounded findings that match at least one *must find* expectation and no *must
-  not flag* expectation, divided by the total number of grounded findings
-  produced across that run, and SHALL equal 1 when that total is zero.
+- **AC-16** The precision of a completed suite run SHALL equal the number of
+  grounded findings produced on its *must find* cases, divided by the total
+  number of grounded findings produced across that run, and SHALL equal 1 when
+  that total is zero.
 - **AC-17** The citation accuracy of a completed suite run SHALL equal the number
   of grounded findings produced across that run divided by the number of findings
   produced across that run before grounding, and SHALL equal 1 when the latter is
@@ -359,10 +356,9 @@ order. Read them as names, not as positions.
 - **AC-19** Scoring a case result and computing a run's metrics SHALL be
   performed without any model call.
 - **AC-20** The subtext presented alongside a case outcome SHALL state, as the
-  expected number, the count of that case's *must find* expectations — zero for a
-  case whose expectations are all *must not flag* — and, as the obtained number,
-  the count of grounded findings in that outcome matching at least one of the
-  case's expectations.
+  expected number, 1 for a *must find* case and 0 for a *must not flag* case,
+  and, as the obtained number, the count of grounded findings produced for that
+  case.
 
 **Suite runs**
 
@@ -476,36 +472,18 @@ order. Read them as names, not as positions.
   find* case, and contributes no findings to precision or citation accuracy. The
   run's errored-case count is what tells the reader that a metric movement may be
   infrastructural rather than behavioural.
-- **A context document that has moved, been renamed or been deleted in the
-  working copy.** Attachment text is read from the repository working copy at
-  resolution time and is not stored, so a document that is no longer there cannot
-  be read. The case is evaluated without it and the omission is recorded with its
-  reason (AC-51, AC-52). This is deliberately **not** an errored case: it mirrors
-  what the product already does for an ordinary review, and treating a missing
-  optional document as machinery failure would make the errored-case count
-  (AC-28) meaningless.
-- **Reproducibility limitation: the working copy is not frozen.** Everything else
-  a run consumes is frozen or captured — the diff at case creation, the prompt,
-  model, strategy and skills at run start. Context document *text* is not: it is
-  read from disk each time, so two runs of the same case, with no change to any
-  stored record, can assemble different context if the working copy changed in
-  between. This is an accepted limitation, in the same register as semantic
-  matching. The mitigation is the capture (AC-53): a finished run holds the text
-  it actually used, so a metric movement can be attributed after the fact even
-  though it could not be prevented beforehand, and a comparison says when the two
-  runs' context differed (AC-54).
-- **An eval set whose cases come from more than one repository.** Legitimate: an
-  agent may be exercised against cases seeded from several repositories. Context
-  is resolved per case from that case's repository, so different cases in one run
-  can be evaluated with different documents. The run's captured context is the
-  union of what its cases used.
-- **A case with no repository association,** which is possible for a hand-made
-  case if none was selected. It is evaluated with no context at all (AC-49) and
-  says so on its own row rather than appearing identical to a case whose
-  repository simply has no attachments (AC-50).
-- **An agent with no context attachments at all.** Every case assembles no
-  context, which is the ordinary state for an agent nobody has configured
-  context for — not an omission to be recorded.
+- **A context document on disk.** Eval invocation does not read project-context
+  attachments, so working-copy moves do not change eval scores (AC-49, AC-52).
+- **Reproducibility.** Diff, prompt, model, strategy and skills are frozen or
+  captured at run start. Project-context text is not read on the eval path.
+- **An eval set whose cases were seeded from more than one pull request.**
+  Legitimate; each case still runs on its own frozen diff with no per-case
+  context documents.
+- **A case with no repository association,** which is the normal state for every
+  new case. It is evaluated with no context (AC-49) and says so on its row
+  (AC-50).
+- **An agent with context attachments.** Those attachments do not enter eval
+  prompts; skills still do (AC-11).
 - **A run in which every case errors.** Reported as failed with no metrics
   (AC-29), specifically so that "recall 0%, precision 100%" produced by a missing
   API key cannot be read as a prompt regression.
@@ -543,12 +521,15 @@ order. Read them as names, not as positions.
 - **A very long frozen diff, a very long case name, or a very long system
   prompt.** All are presented in full within a scrollable region; none is
   truncated in a way that changes what a reader believes the case asserts.
-- **Duplicate expectations within a case.** Two expectations covering overlapping
-  zones both count in the expected number (AC-20) and both can be satisfied by one
-  finding; this follows from AC-12 and is accepted.
-- **A grounded finding matching both a *must find* and a *must not flag*
-  expectation.** It is not a true positive (AC-16) and it fails a *must not flag*
-  case (AC-14) — the forbidden zone wins.
+- **Duplicate expectations within a case.** Expectation rows remain provenance;
+  content-trigger scoring uses polarity only, so duplicate zones do not change
+  expected/obtained counts (AC-20 expected is 1 or 0).
+- **A grounded finding on a *must not flag* case.** Any grounded finding fails
+  the case (AC-14) and those findings count in the precision denominator but not
+  the numerator (AC-16).
+- **A grounded finding on a *must find* case that cites different lines than the
+  seed expectation.** The case passes (AC-13); zone provenance is not a match key
+  (AC-12).
 - **Cost not reported by the model provider.** Cost is presented as unavailable,
   never as zero; a run whose cost is unknown must not read as a free run.
 - **Records written before this feature.** Findings, accept and dismiss
@@ -556,10 +537,9 @@ order. Read them as names, not as positions.
   case, run or case result predates this feature, so no stored eval record needs
   migrating. The unused eval-run persistence slot in the starter schema holds no
   rows and carries no shape this feature must honour.
-- **Path shape differences between a finding and a diff.** Paths are compared as
-  repository-relative paths with forward slashes after any diff-side prefix is
-  removed (Contracts); a finding recorded with a different separator convention
-  still matches the same file.
+- **Path shape differences between a finding and a diff.** Citation grounding
+  still normalizes paths; content-trigger scoring does not use path overlap as a
+  pass key (AC-12).
 
 ## Non-functional requirements
 
@@ -758,18 +738,17 @@ rediscover that the alternatives were considered.
 
 | Decision | Where it binds |
 |---|---|
-| An eval invocation sees the frozen diff plus the agent's system prompt, model, review strategy, linked skills and project-context attachments, and nothing else | Non-goals, AC-11 |
-| **Reversed.** Project-context attachments were first excluded from an eval invocation, on reproducibility grounds. That exclusion is overturned: an eval must measure the agent as a whole, and attachments are authored configuration — part of what the agent *is*, like its linked skills — not derived enrichment. What stays excluded is everything needing a live pull request or a live index | Non-goals, Goals, AC-11 |
-| A case carries a repository association, because an attachment is scoped to a repository and a case has no pull request to supply one; without it context would resolve to nothing, silently | Contracts, AC-46, AC-47, AC-49, AC-50 |
-| A run captures the text of the context it used, not only the paths, because that is what makes a finished run auditable and lets a comparison attribute a movement to a context edit | Contracts, AC-53, AC-54 |
-| Context document text is read from the working copy at resolution time and is therefore not frozen; this is an accepted reproducibility limitation, mitigated by the capture rather than prevented | Edge cases, AC-53 |
-| A context document that cannot be read is omitted with a recorded reason, not treated as an errored case, mirroring what an ordinary review already does | AC-51, AC-52, Edge cases |
+| An eval invocation sees the frozen diff plus the agent's system prompt, model, review strategy and linked skills, and nothing else — including no project-context attachments | Non-goals, AC-11, AC-49 |
+| **Content-only.** Project-context attachments are excluded from eval invocation so cases behave as self-contained fixtures (harness `evals/` quality tier). Skills remain part of the agent snapshot | Non-goals, Goals, AC-11 |
+| New cases store `repo_id` null; older associations do not affect assembly | Contracts, AC-46, AC-47, AC-49, AC-50 |
+| A run's captured project context is empty of documents on the content-only path | Contracts, AC-52, AC-53 |
+| Content-trigger scoring: positive passes on ≥1 grounded finding; negative passes on 0; expectation zones are provenance only | AC-12, AC-13, AC-14, AC-16, AC-20 |
+| A semantic practices judge (LLM in scoring) stays out of scope | Non-goals, AC-19 |
 | The course verification command is named in this spec, by explicit override, because the assignment grades the command by name | Course verification, AC-57 |
 | Suite runs are background jobs with four observable states; only preview runs are request-shaped | Workflow, AC-21, AC-24 to AC-29 |
 | A case that errors is not passed, the run continues, and a run in which every case errors is failed with no metrics | AC-27, AC-28, AC-29 |
 | A negative case stores a canonical forbidden zone and projects as an empty list; an empty list with no stored zone is rejected | AC-7, AC-8, AC-9 |
-| The forbidden zone behind that projection is shown read-only, because a projection that hides the only thing being asserted is a trap | AC-10 |
-| Path comparison is case-sensitive, to agree with the citation-grounding gate that produced the findings being matched | Contracts, AC-12 |
+| The forbidden zone behind that projection is shown read-only as seed provenance, not as the scoring key | AC-10, AC-12 |
 | Running every agent at once is confirmed first, stating how many agents and how many cases it will evaluate; a single agent's run needs no confirmation, because its scope is already on screen | AC-32, AC-31, AC-21 |
 | No feature-specific time budget and no feature-specific rate limit: the per-call budget the model adapters enforce and the workspace-wide request limit already cover both | Non-functional requirements, AC-27, AC-28 |
 | A preview never survives a reload and never enters history, a dashboard or a comparison | AC-33, AC-34 |

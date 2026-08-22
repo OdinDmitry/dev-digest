@@ -8,6 +8,8 @@ export const FINDING_NOT_DECIDED_MESSAGE = 'Finding has not been accepted or dis
 export const EVAL_RUN_NOT_FOUND_MESSAGE = 'Eval run not found';
 export const EVAL_RUN_ACTIVE_MESSAGE = 'A suite run is already active for this agent';
 export const EVAL_NO_CASES_MESSAGE = 'Agent has no eval cases to run';
+export const EVAL_CASE_EXISTS_FOR_FINDING_MESSAGE =
+  'An eval case already exists for this finding';
 
 /**
  * A `running`/`pending` run older than this is treated as dead (a process

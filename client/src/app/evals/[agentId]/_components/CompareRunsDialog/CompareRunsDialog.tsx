@@ -39,13 +39,21 @@ function MetricBox({ metric }: { metric: EvalComparisonMetric }) {
       : t(`dashboard.metrics.${metric.key === "citation_accuracy" ? "citationAccuracy" : metric.key}`);
 
   let deltaText = t("dashboard.deltaNone");
+  let deltaColor = "var(--text-secondary)";
   if (metric.delta != null) {
-    const up = metric.delta >= 0;
-    const magnitude =
-      metric.key === "cost_usd"
-        ? formatCost(Math.abs(metric.delta))
-        : `${Math.round(Math.abs(metric.delta) * 100)}pts`;
-    deltaText = t(up ? "dashboard.deltaUp" : "dashboard.deltaDown", { value: magnitude });
+    if (metric.delta === 0) {
+      deltaText = t("dashboard.deltaUnchanged");
+      deltaColor = "var(--text-muted)";
+    } else {
+      const rose = metric.delta > 0;
+      const improved = metric.key === "cost_usd" ? metric.delta < 0 : metric.delta > 0;
+      const magnitude =
+        metric.key === "cost_usd"
+          ? formatCost(Math.abs(metric.delta))
+          : `${Math.round(Math.abs(metric.delta) * 100)}pts`;
+      deltaText = t(rose ? "dashboard.deltaUp" : "dashboard.deltaDown", { value: magnitude });
+      deltaColor = improved ? "var(--ok)" : "var(--crit)";
+    }
   }
 
   return (
@@ -67,7 +75,7 @@ function MetricBox({ metric }: { metric: EvalComparisonMetric }) {
         <span style={{ fontSize: 13, color: "var(--text-muted)" }}>→</span>
         <span style={{ fontSize: 18, fontWeight: 700 }}>{formatMetricValue(metric, metric.later)}</span>
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{deltaText}</div>
+      <div style={{ fontSize: 12, color: deltaColor, marginTop: 4 }}>{deltaText}</div>
     </div>
   );
 }

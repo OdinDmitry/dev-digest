@@ -65,6 +65,7 @@ const SEED: EvalCaseSeed = {
     },
   ],
   origin: { finding_id: "f1", pr_id: "pr1", pr_number: 42, finding_title: FINDING.title },
+  existing_case_id: null,
 };
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -124,7 +125,7 @@ describe("FindingCard — turn into eval case (SPEC-03 AC-1/AC-2/AC-44)", () => 
   it("an accepted finding's control opens the dialog, prefilled from the mocked seed response", async () => {
     mockSeedGet();
     const accepted: FindingRecord = { ...FINDING, accepted_at: "2026-08-20T00:00:00Z" };
-    const { container } = renderWithIntl(<FindingCard f={accepted} defaultExpanded onAction={() => {}} />);
+    renderWithIntl(<FindingCard f={accepted} defaultExpanded onAction={() => {}} />);
 
     const control = screen.getByRole("button", { name: "Turn into eval case" });
     expect(control).not.toBeDisabled();
@@ -136,9 +137,12 @@ describe("FindingCard — turn into eval case (SPEC-03 AC-1/AC-2/AC-44)", () => 
     expect(await screen.findByDisplayValue(SEED.name)).toBeInTheDocument();
     // Multi-line, exact value — getByDisplayValue's default normalizer
     // collapses whitespace (including newlines), so it's checked directly
-    // against the raw textarea instead.
-    const diffTextarea = container.querySelectorAll("textarea")[0];
+    // against the raw textarea instead. Dialog is portaled to document.body.
+    const diffTextarea = document.body.querySelectorAll("textarea")[0];
     expect(diffTextarea).toHaveValue(SEED.input_diff);
+    // AC-46: from-finding association is fixed — no repository field at all.
+    expect(document.body.querySelector("select")).toBeNull();
+    expect(screen.queryByText(/Repository/i)).not.toBeInTheDocument();
   });
 
   it("a dismissed finding's control opens the dialog, prefilled from the mocked seed response", async () => {

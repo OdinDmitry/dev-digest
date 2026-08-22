@@ -39,7 +39,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         }),
         mutationCache: new MutationCache({
-          onError: (err) => notify.error(errorMessage(err)),
+          onError: (err, _vars, _ctx, mutation) => {
+            // Forms that catch and show inline errors set this so we don't
+            // also toast (and so Next's overlay isn't the only alternative).
+            if (mutation.options.meta?.suppressErrorToast) return;
+            notify.error(errorMessage(err));
+          },
         }),
       })
   );

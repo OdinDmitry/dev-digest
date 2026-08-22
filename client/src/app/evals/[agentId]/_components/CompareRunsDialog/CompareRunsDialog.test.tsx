@@ -117,9 +117,9 @@ describe("CompareRunsDialog", () => {
     expect(screen.getByText("55%")).toBeInTheDocument();
     expect(screen.getByText("down 5pts")).toBeInTheDocument();
 
-    // citation accuracy: 50% → 50%, up 0pts (delta >= 0)
+    // citation accuracy: 50% → 50%, unchanged
     expect(screen.getAllByText("50%")).toHaveLength(2);
-    expect(screen.getByText("up 0pts")).toBeInTheDocument();
+    expect(screen.getByText("unchanged")).toBeInTheDocument();
 
     // cost: $0.04 → $0.03, down $0.01
     expect(screen.getByText("$0.04")).toBeInTheDocument();

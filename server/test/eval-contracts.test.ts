@@ -175,6 +175,7 @@ const EVAL_CASE_SEED_FIXTURE = {
   input_diff: 'diff --git a/src/config.ts b/src/config.ts',
   expectations: [EXPECTATION_FIXTURE],
   origin: { finding_id: 'f-1', pr_id: 'pr-1', pr_number: 482, finding_title: 'Hardcoded secret' },
+  existing_case_id: null,
 };
 
 const EVAL_COMPARISON_FIXTURE = {

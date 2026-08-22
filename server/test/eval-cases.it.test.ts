@@ -154,6 +154,7 @@ d('eval-case CRUD + finding seed/create (Testcontainers pg)', () => {
     // expectation cites.
     expect(seedDto.input_diff).toContain('src/config.ts');
     expect(seedDto.input_diff).toContain('stripeKey');
+    expect(seedDto.existing_case_id).toBeNull();
 
     await app.close();
   });
@@ -178,11 +179,11 @@ d('eval-case CRUD + finding seed/create (Testcontainers pg)', () => {
     await app.close();
   });
 
-  it('POST /findings/:id/eval-case derives owner_id from the review agent (ignoring any agent id in the body) and repo_id from the pull (AC-5, AC-46)', async () => {
+  it('POST /findings/:id/eval-case derives owner_id from the review agent and stores repo_id null (AC-5, AC-46)', async () => {
     const app = await appWith();
     const owningAgent = await createAgent(app, 'Owning Agent');
     const otherAgent = await createAgent(app, 'Other Agent');
-    const { finding, repo } = await setupFinding(workspaceId, owningAgent.id, 'accepted');
+    const { finding } = await setupFinding(workspaceId, owningAgent.id, 'accepted');
 
     const res = await app.inject({
       method: 'POST',
@@ -197,12 +198,45 @@ d('eval-case CRUD + finding seed/create (Testcontainers pg)', () => {
 
     expect(dto.owner_id).toBe(owningAgent.id);
     expect(dto.owner_id).not.toBe(otherAgent.id);
-    expect(dto.repo_id).toBe(repo.id);
+    expect(dto.repo_id).toBeNull();
+    expect(dto.resolves_context).toBe(false);
 
     await app.close();
   });
 
-  it('POST /agents/:id/eval-cases persists the body repo_id (AC-47)', async () => {
+  it('POST /findings/:id/eval-case a second time for the same finding returns 409', async () => {
+    const app = await appWith();
+    const agent = await createAgent(app, 'Dup-guard Agent');
+    const { finding } = await setupFinding(workspaceId, agent.id, 'accepted');
+
+    const first = await app.inject({
+      method: 'POST',
+      url: `/findings/${finding.id}/eval-case`,
+      payload: { name: 'First case' },
+    });
+    expect(first.statusCode).toBe(200);
+
+    const second = await app.inject({
+      method: 'POST',
+      url: `/findings/${finding.id}/eval-case`,
+      payload: { name: 'Duplicate case' },
+    });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error.message).toMatch(/already exists/i);
+
+    const listed = await app.inject({ method: 'GET', url: `/agents/${agent.id}/eval-cases` });
+    expect(listed.json()).toHaveLength(1);
+
+    const seedAfter = await app.inject({
+      method: 'GET',
+      url: `/findings/${finding.id}/eval-case-seed`,
+    });
+    expect(seedAfter.json().existing_case_id).toBe(first.json().id);
+
+    await app.close();
+  });
+
+  it('POST /agents/:id/eval-cases ignores body repo_id and stores null (AC-47)', async () => {
     const app = await appWith();
     const agent = await createAgent(app, 'Direct-create Agent');
     const name = `payments-api-${seq++}`;
@@ -226,8 +260,8 @@ d('eval-case CRUD + finding seed/create (Testcontainers pg)', () => {
     expect(res.statusCode).toBe(200);
     const dto = res.json();
     expect(dto.owner_id).toBe(agent.id);
-    expect(dto.repo_id).toBe(repo!.id);
-    expect(dto.repo_full_name).toBe(repo!.fullName);
+    expect(dto.repo_id).toBeNull();
+    expect(dto.resolves_context).toBe(false);
 
     await app.close();
   });

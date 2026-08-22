@@ -3,9 +3,12 @@ import type { EvalExpectation, EvalExpectationKind, Finding } from '@devdigest/s
 /**
  * modules/evals/scoring.ts — the mechanical, model-free eval scorer
  * (`onion-architecture` ring 2, pure). Zero runtime imports; only types cross
- * from the shared contracts package. Matching is defined over zones only: a
- * file path plus a closed line interval, taken either from an expectation or
- * a grounded finding, per spec's "Matching and scoring" contracts.
+ * from the shared contracts package.
+ *
+ * Content-trigger (SPEC-03 AC-12..14): pass/fail depends on polarity and
+ * grounded finding *count* only. Expectation file/line fields are provenance
+ * for the UI, not a match key. Zone helpers below remain for optional
+ * display/normalization callers; `scoreCase` does not use them.
  *
  * Scoring here never calls a structured-output API or any network provider —
  * it is arithmetic over already-grounded results (AC-19).
@@ -20,7 +23,7 @@ export interface Zone {
 /**
  * Repository-relative, forward-slash path, with any single leading diff-side
  * prefix (`a/` or `b/`) stripped. Comparison stays case-sensitive to agree
- * with the citation-grounding gate that produced the findings being matched.
+ * with the citation-grounding gate.
  */
 export function normalizeZonePath(path: string): string {
   const posix = path.replace(/\\/g, '/');
@@ -29,7 +32,7 @@ export function normalizeZonePath(path: string): string {
 }
 
 /** Two zones match when they name the same file and their closed line ranges
- *  overlap in at least one line (AC-12). */
+ *  overlap in at least one line. Not used for pass/fail (AC-12). */
 export function zonesOverlap(a: Zone, b: Zone): boolean {
   if (normalizeZonePath(a.file) !== normalizeZonePath(b.file)) return false;
   const aLo = Math.min(a.start, a.end);
@@ -53,59 +56,40 @@ export function matchesAny(z: Zone, expectations: EvalExpectation[]): boolean {
 
 export interface CaseScore {
   passed: boolean;
-  /** AC-20 "expected" — the count of the case's `must_find` expectations. */
+  /** AC-20 "expected" — 1 for must_find, 0 for must_not_flag. */
   expectedCount: number;
-  /** AC-20 "obtained" — grounded findings matching >=1 expectation, any kind. */
+  /** AC-20 "obtained" — all grounded findings on this case. */
   matchedCount: number;
-  /** AC-16 numerator contribution — grounded findings matching >=1 `must_find`
-   *  expectation AND 0 `must_not_flag` expectation. A finding matching both
-   *  is not a true positive: the forbidden zone wins. */
+  /** AC-16 numerator contribution — all grounded findings when the case is
+   *  must_find polarity; 0 on must_not_flag cases. */
   truePositives: number;
   groundedCount: number;
   rawCount: number;
 }
 
 /**
- * Score one case's grounded result. `expectations` is generally single-kind
- * for a real persisted case (the polarity invariant, enforced at save time —
- * see `helpers.ts`), but this function makes no such assumption: it always
- * evaluates `must_find` and `must_not_flag` expectations independently, so a
- * finding that matches both kinds still fails the `must_not_flag` half.
+ * Score one case's grounded result (AC-13 / AC-14). Any `must_not_flag`
+ * expectation makes the case negative (0 grounded required); otherwise it is
+ * positive (≥1 grounded required). Mixed kinds are treated as negative so a
+ * forbidden polarity cannot silently pass.
  */
 export function scoreCase(
   expectations: EvalExpectation[],
   grounded: Finding[],
   rawCount: number,
 ): CaseScore {
-  const mustFind = expectations.filter((e) => e.kind === 'must_find');
-  const mustNotFlag = expectations.filter((e) => e.kind === 'must_not_flag');
-
-  let truePositives = 0;
-  let matchedCount = 0;
-  let anyMustFindMatch = false;
-  let anyMustNotFlagMatch = false;
-
-  for (const f of grounded) {
-    const zone = findingZone(f);
-    const matchesMustFind = matchesAny(zone, mustFind);
-    const matchesMustNotFlag = matchesAny(zone, mustNotFlag);
-    if (matchesMustFind) anyMustFindMatch = true;
-    if (matchesMustNotFlag) anyMustNotFlagMatch = true;
-    if (matchesMustFind && !matchesMustNotFlag) truePositives += 1;
-    if (matchesMustFind || matchesMustNotFlag) matchedCount += 1;
-  }
-
-  // AC-13 (must_find: at least one match passes) + AC-14 (must_not_flag: no
-  // match passes) combined — a must_not_flag violation always fails the case
-  // (AC-14 / "the forbidden zone wins"), independent of any must_find match.
-  const passed = !anyMustNotFlagMatch && (mustFind.length === 0 || anyMustFindMatch);
+  const mustNotFlag = expectations.some((e) => e.kind === 'must_not_flag');
+  const groundedCount = grounded.length;
+  const passed = mustNotFlag ? groundedCount === 0 : groundedCount >= 1;
+  const expectedCount = mustNotFlag ? 0 : 1;
+  const truePositives = mustNotFlag ? 0 : groundedCount;
 
   return {
     passed,
-    expectedCount: mustFind.length,
-    matchedCount,
+    expectedCount,
+    matchedCount: groundedCount,
     truePositives,
-    groundedCount: grounded.length,
+    groundedCount,
     rawCount,
   };
 }

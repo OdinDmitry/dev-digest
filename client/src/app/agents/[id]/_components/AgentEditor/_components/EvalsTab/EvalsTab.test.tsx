@@ -7,13 +7,14 @@ import evalMessages from "../../../../../../../../messages/en/eval.json";
 
 const get = vi.fn();
 const post = vi.fn();
+const del = vi.fn();
 vi.mock("@/lib/api", () => ({
   api: {
     get: (p: string) => get(p),
     post: (p: string, body?: unknown) => post(p, body),
     put: vi.fn(),
     patch: vi.fn(),
-    del: vi.fn(),
+    del: (p: string) => del(p),
   },
   ApiError: class extends Error {},
   API_BASE: "http://localhost:3001",
@@ -318,14 +319,16 @@ describe("EvalsTab", () => {
     expect(screen.getByText(/expected 2, got 1/)).toBeInTheDocument();
   });
 
-  it("a case with resolves_context: false renders evalsTab.noContext (AC-50)", async () => {
-    const withContext = makeCase({ id: "case-ctx", name: "has-context", resolves_context: true });
-    const noContext = makeCase({ id: "case-noctx", name: "no-context", resolves_context: false });
-    setupGet({ cases: [withContext, noContext], runs: [], active: null });
+  it("does not render a per-case project-context note — all evals are content-only", async () => {
+    const cases = [
+      makeCase({ id: "case-a", name: "case-a", resolves_context: false }),
+      makeCase({ id: "case-b", name: "case-b", resolves_context: false }),
+    ];
+    setupGet({ cases, runs: [], active: null });
     renderTab();
 
-    await screen.findByText("has-context");
-    expect(screen.getAllByText("No project context will be resolved for this case.")).toHaveLength(1);
+    await screen.findByText("case-a");
+    expect(screen.queryByText(/project context/i)).not.toBeInTheDocument();
   });
 
   it("expectations carrying severity and category render both (AC-56)", async () => {
@@ -337,6 +340,45 @@ describe("EvalsTab", () => {
     renderTab();
 
     expect(await screen.findByText("critical · security")).toBeInTheDocument();
+  });
+
+  it("renders a POSITIVE/NEGATIVE CASE chip beside the case name from polarity", async () => {
+    const positive = makeCase({ name: "pos-case", polarity: "must_find" });
+    const negative = makeCase({
+      name: "neg-case",
+      polarity: "must_not_flag",
+      expectations: [{ ...POSITIVE_EXPECTATION, kind: "must_not_flag" }],
+    });
+    setupGet({ cases: [positive, negative], runs: [], active: null });
+    renderTab();
+
+    await screen.findByText("pos-case");
+    expect(screen.getByText("POSITIVE CASE")).toBeInTheDocument();
+    expect(screen.getByText("NEGATIVE CASE")).toBeInTheDocument();
+  });
+
+  it("asks for confirmation before deleting a case, and cancels without a request", async () => {
+    const cs = makeCase({ id: "case-del", name: "to-delete" });
+    setupGet({ cases: [cs], runs: [], active: null });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderTab();
+
+    fireEvent.click(await screen.findByLabelText("Delete the eval case to-delete"));
+    expect(confirmSpy).toHaveBeenCalledWith('Delete eval case "to-delete"? This cannot be undone.');
+    expect(del).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("deletes a case after the user confirms", async () => {
+    const cs = makeCase({ id: "case-del-ok", name: "do-delete" });
+    setupGet({ cases: [cs], runs: [], active: null });
+    del.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderTab();
+
+    fireEvent.click(await screen.findByLabelText("Delete the eval case do-delete"));
+    await waitFor(() => expect(del).toHaveBeenCalledWith("/eval-cases/case-del-ok"));
+    confirmSpy.mockRestore();
   });
 
   it("the evalsTab.viewDashboard control links to /evals/{agentId} (AC-55)", async () => {

@@ -47,17 +47,35 @@ function MetricCell({
     );
   }
 
-  const up = delta >= 0;
+  if (delta === 0) {
+    return (
+      <td style={s.td}>
+        <div style={s.metricValue} className="tnum">
+          {display}
+        </div>
+        <div data-delta-tone="flat" style={s.deltaRow}>
+          {t("dashboard.deltaUnchanged")}
+        </div>
+      </td>
+    );
+  }
+
+  const rose = delta > 0;
+  // Rates: higher is better. Cost: lower is better — a drop paints green.
+  const improved = kind === "cost" ? delta < 0 : delta > 0;
   const magnitude = kind === "percent" ? `${Math.round(Math.abs(delta) * 100)}pts` : formatCost(Math.abs(delta));
-  const deltaText = t(up ? "dashboard.deltaUp" : "dashboard.deltaDown", { value: magnitude });
+  const deltaText = t(rose ? "dashboard.deltaUp" : "dashboard.deltaDown", { value: magnitude });
 
   return (
     <td style={s.td}>
       <div style={s.metricValue} className="tnum">
         {display}
       </div>
-      <div style={{ ...s.deltaRow, ...(up ? s.deltaUp : s.deltaDown) }}>
-        {up ? <Icon.ArrowUp size={11} /> : <Icon.ArrowDown size={11} />}
+      <div
+        data-delta-tone={improved ? "good" : "bad"}
+        style={{ ...s.deltaRow, ...(improved ? s.deltaUp : s.deltaDown) }}
+      >
+        {rose ? <Icon.ArrowUp size={11} /> : <Icon.ArrowDown size={11} />}
         {deltaText}
       </div>
     </td>

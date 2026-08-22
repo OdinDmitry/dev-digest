@@ -14,9 +14,8 @@ import {
 } from '../src/modules/evals/scoring.js';
 
 /**
- * Hermetic unit tests over `modules/evals/scoring.ts` — the pure, model-free
- * scorer (`docs/plans/2026-08-22-eval-pipeline-a-foundation.md` T16). Covers
- * AC-12..AC-20.
+ * Hermetic unit tests over `modules/evals/scoring.ts` — content-trigger
+ * scorer (AC-12..AC-20). Zone helpers are tested for provenance utilities only.
  */
 
 let findingSeq = 0;
@@ -53,7 +52,7 @@ function mkExpectation(overrides: Partial<EvalExpectation> = {}): EvalExpectatio
   };
 }
 
-describe('zonesOverlap (AC-12)', () => {
+describe('zonesOverlap (provenance helper, not pass key)', () => {
   it('matches when the ranges share exactly one line', () => {
     expect(
       zonesOverlap({ file: 'src/x.ts', start: 5, end: 10 }, { file: 'src/x.ts', start: 10, end: 15 }),
@@ -73,25 +72,15 @@ describe('zonesOverlap (AC-12)', () => {
   });
 });
 
-describe('normalizeZonePath (AC-12)', () => {
+describe('normalizeZonePath', () => {
   it('resolves a/-prefixed, b/-prefixed and backslash-separated forms to the same file', () => {
     expect(normalizeZonePath('a/src/x.ts')).toBe('src/x.ts');
     expect(normalizeZonePath('b/src/x.ts')).toBe('src/x.ts');
     expect(normalizeZonePath('src\\x.ts')).toBe('src/x.ts');
-    // All three overlap each other once normalized.
-    expect(
-      zonesOverlap({ file: 'a/src/x.ts', start: 10, end: 10 }, { file: 'b/src/x.ts', start: 10, end: 10 }),
-    ).toBe(true);
-    expect(
-      zonesOverlap({ file: 'src\\x.ts', start: 10, end: 10 }, { file: 'src/x.ts', start: 10, end: 10 }),
-    ).toBe(true);
   });
 
   it('comparison stays case-sensitive: src/X.ts does not equal src/x.ts', () => {
     expect(normalizeZonePath('src/X.ts')).not.toBe(normalizeZonePath('src/x.ts'));
-    expect(
-      zonesOverlap({ file: 'src/X.ts', start: 10, end: 10 }, { file: 'src/x.ts', start: 10, end: 10 }),
-    ).toBe(false);
   });
 });
 
@@ -109,53 +98,59 @@ describe('expectationZone / findingZone / matchesAny', () => {
 });
 
 describe('scoreCase — positive case (must_find), AC-13/AC-20', () => {
-  it('passes when a grounded finding overlaps the must_find expectation, and reports expected/obtained', () => {
+  it('passes when any grounded finding exists, even on different lines than the seed', () => {
     const expectations = [mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 10 })];
-    const grounded = [mkFinding({ file: 'src/x.ts', start_line: 10, end_line: 10 })];
+    const grounded = [mkFinding({ file: 'src/x.ts', start_line: 194, end_line: 194 })];
 
     const score = scoreCase(expectations, grounded, 1);
     expect(score.passed).toBe(true);
-    expect(score.expectedCount).toBe(1); // AC-20 "expected"
-    expect(score.matchedCount).toBe(1); // AC-20 "obtained"
+    expect(score.expectedCount).toBe(1);
+    expect(score.matchedCount).toBe(1);
     expect(score.truePositives).toBe(1);
     expect(score.groundedCount).toBe(1);
-    expect(score.rawCount).toBe(1);
   });
 
-  it('fails when no grounded finding overlaps the must_find expectation', () => {
+  it('passes when a grounded finding cites a different file than the seed expectation', () => {
     const expectations = [mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 10 })];
     const grounded = [mkFinding({ file: 'src/y.ts', start_line: 1, end_line: 1 })];
 
     const score = scoreCase(expectations, grounded, 1);
+    expect(score.passed).toBe(true);
+    expect(score.matchedCount).toBe(1);
+    expect(score.truePositives).toBe(1);
+  });
+
+  it('fails when no grounded finding was produced', () => {
+    const expectations = [mkExpectation({ kind: 'must_find' })];
+    const score = scoreCase(expectations, [], 0);
     expect(score.passed).toBe(false);
     expect(score.expectedCount).toBe(1);
-    expect(score.matchedCount).toBe(0); // AC-20 "obtained" — nothing matched
+    expect(score.matchedCount).toBe(0);
     expect(score.truePositives).toBe(0);
   });
 });
 
 describe('scoreCase — negative case (must_not_flag), AC-14/AC-20', () => {
-  it('passes when no grounded finding overlaps the forbidden zone', () => {
+  it('passes when no grounded finding was produced', () => {
+    const expectations = [mkExpectation({ kind: 'must_not_flag', file: 'src/x.ts', start_line: 10, end_line: 10 })];
+    const score = scoreCase(expectations, [], 0);
+    expect(score.passed).toBe(true);
+    expect(score.expectedCount).toBe(0);
+    expect(score.matchedCount).toBe(0);
+    expect(score.truePositives).toBe(0);
+  });
+
+  it('fails when any grounded finding exists, even outside the seed zone', () => {
     const expectations = [mkExpectation({ kind: 'must_not_flag', file: 'src/x.ts', start_line: 10, end_line: 10 })];
     const grounded = [mkFinding({ file: 'src/y.ts', start_line: 1, end_line: 1 })];
 
     const score = scoreCase(expectations, grounded, 1);
-    expect(score.passed).toBe(true);
-    expect(score.expectedCount).toBe(0); // no must_find expectations in this case
-    expect(score.matchedCount).toBe(0);
-  });
-
-  it('fails when a grounded finding overlaps the forbidden zone, and still reports it in "obtained"', () => {
-    const expectations = [mkExpectation({ kind: 'must_not_flag', file: 'src/x.ts', start_line: 10, end_line: 10 })];
-    const grounded = [mkFinding({ file: 'src/x.ts', start_line: 10, end_line: 10 })];
-
-    const score = scoreCase(expectations, grounded, 1);
     expect(score.passed).toBe(false);
-    expect(score.matchedCount).toBe(1); // AC-20 "obtained" counts any-kind matches
-    expect(score.truePositives).toBe(0); // a must_not_flag match is never a true positive
+    expect(score.matchedCount).toBe(1);
+    expect(score.truePositives).toBe(0);
   });
 
-  it('a finding matching BOTH a must_find and a must_not_flag expectation is not a true positive and fails the negative case', () => {
+  it('mixed must_find + must_not_flag is treated as negative: any grounded finding fails', () => {
     const expectations = [
       mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 10 }),
       mkExpectation({ kind: 'must_not_flag', file: 'src/x.ts', start_line: 10, end_line: 10 }),
@@ -163,41 +158,23 @@ describe('scoreCase — negative case (must_not_flag), AC-14/AC-20', () => {
     const grounded = [mkFinding({ file: 'src/x.ts', start_line: 10, end_line: 10 })];
 
     const score = scoreCase(expectations, grounded, 1);
-    // The forbidden zone wins — this is not a passing case, and the finding
-    // does not count as a true positive despite also satisfying must_find.
     expect(score.passed).toBe(false);
     expect(score.truePositives).toBe(0);
-    expect(score.matchedCount).toBe(1); // matched at least one expectation, of any kind
+    expect(score.expectedCount).toBe(0);
   });
 });
 
-describe('scoreCase — duplicate overlapping expectations', () => {
-  it('a single finding overlapping two must_find expectations at the same zone is counted once as a true positive but each expectation independently seeing the match does not double-count matchedCount', () => {
-    const expectations = [
-      mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 10 }),
-      mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 12 }),
-    ];
-    const grounded = [mkFinding({ file: 'src/x.ts', start_line: 10, end_line: 10 })];
-
-    const score = scoreCase(expectations, grounded, 1);
-    expect(score.expectedCount).toBe(2); // both duplicate expectations are counted
-    expect(score.passed).toBe(true);
-    expect(score.matchedCount).toBe(1); // one grounded finding, matched once
-    expect(score.truePositives).toBe(1);
-  });
-
-  it('two distinct grounded findings each overlapping the same duplicated expectations both count', () => {
-    const expectations = [
-      mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 10 }),
-      mkExpectation({ kind: 'must_find', file: 'src/x.ts', start_line: 10, end_line: 10 }),
-    ];
+describe('scoreCase — multiple grounded findings', () => {
+  it('counts every grounded finding as obtained and as true positives on a positive case', () => {
+    const expectations = [mkExpectation({ kind: 'must_find' })];
     const grounded = [
       mkFinding({ file: 'src/x.ts', start_line: 10, end_line: 10 }),
-      mkFinding({ file: 'src/x.ts', start_line: 10, end_line: 10 }),
+      mkFinding({ file: 'src/x.ts', start_line: 20, end_line: 20 }),
     ];
 
     const score = scoreCase(expectations, grounded, 2);
-    expect(score.expectedCount).toBe(2);
+    expect(score.passed).toBe(true);
+    expect(score.expectedCount).toBe(1);
     expect(score.matchedCount).toBe(2);
     expect(score.truePositives).toBe(2);
   });
@@ -209,11 +186,7 @@ describe('aggregate (AC-15..AC-18)', () => {
       {
         polarity: 'must_not_flag',
         errored: false,
-        score: scoreCase(
-          [mkExpectation({ kind: 'must_not_flag' })],
-          [],
-          0,
-        ),
+        score: scoreCase([mkExpectation({ kind: 'must_not_flag' })], [], 0),
       },
     ];
     expect(aggregate(cases).recall).toBe(1);
@@ -241,8 +214,8 @@ describe('aggregate (AC-15..AC-18)', () => {
     expect(aggregate(cases).citation_accuracy).toBe(1);
   });
 
-  it('computes recall/precision/citation_accuracy and passed/total over a mixed run', () => {
-    // Case A: must_find, passes (1 grounded, 1 raw, true positive).
+  it('computes recall/precision/citation_accuracy under content-trigger rules', () => {
+    // Case A: must_find, passes (1 grounded = TP).
     const a: RunCaseInput = {
       polarity: 'must_find',
       errored: false,
@@ -252,8 +225,7 @@ describe('aggregate (AC-15..AC-18)', () => {
         1,
       ),
     };
-    // Case B: must_find, fails (nothing grounded matches; 1 grounded finding
-    // is an off-target false positive, plus 1 dropped raw finding).
+    // Case B: must_find, passes even though finding is off the seed zone (1 TP).
     const b: RunCaseInput = {
       polarity: 'must_find',
       errored: false,
@@ -275,14 +247,36 @@ describe('aggregate (AC-15..AC-18)', () => {
     };
 
     const metrics = aggregate([a, b, c]);
-    // recall: must_find cases are A and B; A passes, B fails => 1/2
-    expect(metrics.recall).toBeCloseTo(0.5);
-    // precision: true positives (1 from A) / grounded (1 from A + 1 from B) = 1/2
-    expect(metrics.precision).toBeCloseTo(0.5);
-    // citation accuracy: grounded (2) / raw (1 + 2 + 0 = 3)
+    expect(metrics.recall).toBe(1);
+    expect(metrics.precision).toBe(1); // 2 TP / 2 grounded
     expect(metrics.citation_accuracy).toBeCloseTo(2 / 3);
-    expect(metrics.passed).toBe(2); // A and C
+    expect(metrics.passed).toBe(3);
     expect(metrics.total).toBe(3);
+  });
+
+  it('precision is grounded_on_must_find / all_grounded (2/5 when negative contributes 3)', () => {
+    const positive: RunCaseInput = {
+      polarity: 'must_find',
+      errored: false,
+      score: scoreCase(
+        [mkExpectation({ kind: 'must_find' })],
+        [mkFinding(), mkFinding({ start_line: 11, end_line: 11 })],
+        2,
+      ),
+    };
+    const negative: RunCaseInput = {
+      polarity: 'must_not_flag',
+      errored: false,
+      score: scoreCase(
+        [mkExpectation({ kind: 'must_not_flag' })],
+        [mkFinding(), mkFinding({ start_line: 12 }), mkFinding({ start_line: 13 })],
+        3,
+      ),
+    };
+    const metrics = aggregate([positive, negative]);
+    expect(metrics.precision).toBeCloseTo(2 / 5);
+    expect(metrics.recall).toBe(1);
+    expect(metrics.passed).toBe(1); // only positive
   });
 
   it('an errored case counts toward total but never toward passed, and contributes no findings to precision/citation_accuracy', () => {
@@ -301,11 +295,7 @@ describe('aggregate (AC-15..AC-18)', () => {
     const metrics = aggregate(cases);
     expect(metrics.total).toBe(2);
     expect(metrics.passed).toBe(1);
-    // recall denominator includes the errored must_find case (2), numerator
-    // is only the one that actually passed (1).
     expect(metrics.recall).toBeCloseTo(0.5);
-    // precision/citation_accuracy: errored case contributes nothing, so this
-    // is exactly the surviving case's own numbers (1/1, 1/1).
     expect(metrics.precision).toBe(1);
     expect(metrics.citation_accuracy).toBe(1);
   });
@@ -320,7 +310,7 @@ describe('module purity (AC-19)', () => {
       .map((line) => line.trim())
       .filter((line) => line.startsWith('import '));
 
-    expect(importLines.length).toBeGreaterThan(0); // sanity: the file does import something
+    expect(importLines.length).toBeGreaterThan(0);
     for (const line of importLines) {
       expect(line).toMatch(/^import type /);
     }

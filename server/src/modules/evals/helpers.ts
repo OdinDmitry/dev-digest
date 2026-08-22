@@ -190,12 +190,8 @@ export function caseRowToDto(
     polarity: polarityOf(expectations),
     origin,
     notes: row.notes,
-    // AC-50 (server half) — true iff a run for this case would resolve ANY
-    // project context; Phase C turns this into the "no repository, no
-    // context will be resolved" note text. See `contextInputFor` above,
-    // whose `caseRepoId === null` branch is the runtime counterpart of this
-    // same fact.
-    resolves_context: row.repoId !== null,
+    // AC-50 — content-only evals never resolve project context (AC-11 / AC-49).
+    resolves_context: false,
     last_outcome: lastOutcome,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),

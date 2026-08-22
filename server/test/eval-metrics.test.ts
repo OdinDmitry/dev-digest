@@ -233,15 +233,10 @@ describe('metricDelta (AC-38)', () => {
 });
 
 describe('caseRowToDto — resolves_context (AC-50)', () => {
-  it('true when the case carries a repo_id', () => {
-    const row = mkCaseRow({ repoId: 'repo-1' });
-    const dto = caseRowToDto(row, 'acme/payments-api', null);
-    expect(dto.resolves_context).toBe(true);
-  });
-
-  it('false when the case has no repo_id — a run of it will resolve no project context', () => {
-    const row = mkCaseRow({ repoId: null });
-    const dto = caseRowToDto(row, null, null);
-    expect(dto.resolves_context).toBe(false);
+  it('is always false — content-only evals never resolve project context', () => {
+    expect(caseRowToDto(mkCaseRow({ repoId: 'repo-1' }), 'acme/payments-api', null).resolves_context).toBe(
+      false,
+    );
+    expect(caseRowToDto(mkCaseRow({ repoId: null }), null, null).resolves_context).toBe(false);
   });
 });

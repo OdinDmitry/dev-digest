@@ -246,11 +246,11 @@ export function EvalsTab({ agentId }: { agentId: string }) {
                 <div style={s.rowMain}>
                   <div style={s.nameRow}>
                     <span style={s.name}>{cs.name}</span>
-                    {primary?.severity && primary?.category && (
-                      <span style={s.chip}>
-                        {primary.severity} · {primary.category}
-                      </span>
-                    )}
+                    <span style={s.polarityChip(cs.polarity === "must_not_flag" ? "negative" : "positive")}>
+                      {cs.polarity === "must_not_flag"
+                        ? t("caseEditor.negativeBannerLabel")
+                        : t("caseEditor.positiveBannerLabel")}
+                    </span>
                   </div>
                   <div style={s.statusText}>
                     {visual.label}
@@ -265,8 +265,13 @@ export function EvalsTab({ agentId }: { agentId: string }) {
                     )}
                     {isPreview && <span style={s.previewNote}>{t("evalsTab.previewNotStored")}</span>}
                   </div>
-                  {!cs.resolves_context && <div style={s.noContext}>{t("evalsTab.noContext")}</div>}
                 </div>
+
+                {primary?.severity && primary?.category && (
+                  <span style={s.chip}>
+                    {primary.severity} · {primary.category}
+                  </span>
+                )}
 
                 <div style={s.actions}>
                   <button
@@ -302,7 +307,11 @@ export function EvalsTab({ agentId }: { agentId: string }) {
                     type="button"
                     aria-label={t("evalsTab.deleteCaseAria", { name: cs.name })}
                     style={s.iconButton(false)}
-                    onClick={() => del.mutate({ id: cs.id })}
+                    onClick={() => {
+                      if (window.confirm(t("evalsTab.deleteConfirm", { name: cs.name }))) {
+                        del.mutate({ id: cs.id });
+                      }
+                    }}
                   >
                     <Icon.Trash size={14} />
                   </button>

@@ -134,6 +134,13 @@
       "when": 1787409433329,
       "tag": "0018_conscious_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787428107163,
+      "tag": "0019_bitter_pete_wisdom",
+      "breakpoints": true
     }
   ]
 }

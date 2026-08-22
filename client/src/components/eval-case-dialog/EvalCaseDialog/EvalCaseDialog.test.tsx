@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
@@ -10,6 +10,21 @@ import commonMessages from "../../../../messages/en/common.json";
 const get = vi.fn();
 const post = vi.fn();
 const put = vi.fn();
+
+const { MockApiError } = vi.hoisted(() => {
+  class MockApiError extends Error {
+    status: number;
+    code?: string;
+    constructor(message: string, status: number, code?: string) {
+      super(message);
+      this.name = "ApiError";
+      this.status = status;
+      this.code = code;
+    }
+  }
+  return { MockApiError };
+});
+
 vi.mock("@/lib/api", () => ({
   api: {
     get: (p: string) => get(p),
@@ -18,7 +33,7 @@ vi.mock("@/lib/api", () => ({
     patch: vi.fn(),
     del: vi.fn(),
   },
-  ApiError: class extends Error {},
+  ApiError: MockApiError,
   API_BASE: "http://localhost:3001",
 }));
 
@@ -94,9 +109,11 @@ function renderDialog(props: Partial<EvalCaseDialogProps> = {}) {
   return { ...utils, onClose };
 }
 
-/** The two `<textarea>`s always in DOM order: [diff input, expected-output editor]. */
-function editorTextarea(container: HTMLElement): HTMLTextAreaElement {
-  const textareas = container.querySelectorAll("textarea");
+/** The two `<textarea>`s always in DOM order: [diff input, expected-output editor].
+ *  Queried from `document.body` because the dialog is portaled out of the
+ *  render container (escapes FindingCard's muted opacity stacking context). */
+function editorTextarea(): HTMLTextAreaElement {
+  const textareas = document.body.querySelectorAll("textarea");
   return textareas[1] as HTMLTextAreaElement;
 }
 
@@ -104,10 +121,10 @@ describe("EvalCaseDialog", () => {
   it("projects [] into the editor for a negative case, with its stored zones listed read-only beside it, and states the forbidden zone in the banner", async () => {
     get.mockResolvedValue([]);
     const caseRecord = makeCase({ expectations: NEGATIVE_EXPECTATIONS, polarity: "must_not_flag" });
-    const { container } = renderDialog({ mode: "edit", caseRecord });
+    renderDialog({ mode: "edit", caseRecord });
 
     // AC-7: the editor itself shows a fixed [] projection, read-only.
-    const editor = editorTextarea(container);
+    const editor = editorTextarea();
     expect(editor).toHaveValue("[]");
     expect(editor).toHaveAttribute("readonly");
 
@@ -115,10 +132,9 @@ describe("EvalCaseDialog", () => {
     expect(screen.getByText("src/db/pool.ts:4-9")).toBeInTheDocument();
     expect(screen.getByText("src/db/pool.ts:20-25")).toBeInTheDocument();
 
-    // AC-48 (negative variant): banner names the forbidden zone.
-    expect(
-      screen.getByText("NEGATIVE CASE — MUST NOT flag src/db/pool.ts:4"),
-    ).toBeInTheDocument();
+    // AC-48 (negative variant): two-line banner — label + body naming the zone.
+    expect(screen.getByText("NEGATIVE CASE")).toBeInTheDocument();
+    expect(screen.getByText("MUST NOT flag src/db/pool.ts:4")).toBeInTheDocument();
   });
 
   it("states the finding, file and line in the banner for a positive case", async () => {
@@ -126,8 +142,9 @@ describe("EvalCaseDialog", () => {
     const caseRecord = makeCase();
     renderDialog({ mode: "edit", caseRecord });
 
+    expect(screen.getByText("POSITIVE CASE")).toBeInTheDocument();
     expect(
-      screen.getByText('POSITIVE CASE — MUST find "Hardcoded Stripe secret key" at src/config.ts:11'),
+      screen.getByText('MUST find "Hardcoded Stripe secret key" at src/config.ts:11'),
     ).toBeInTheDocument();
   });
 
@@ -149,12 +166,94 @@ describe("EvalCaseDialog", () => {
     expect(body.expectations).toEqual([]);
   });
 
+  it("creating a negative case from a finding sends the canonical must_not_flag zones, not []", async () => {
+    const seed = {
+      agent_id: "ag1",
+      agent_name: "Agent",
+      repo_id: "repo1",
+      repo_full_name: "acme/widgets",
+      name: "dismissed-finding",
+      input_diff: "--- a/x\n+++ b/x",
+      expectations: NEGATIVE_EXPECTATIONS,
+      origin: {
+        finding_id: "f1",
+        pr_id: "pr1",
+        pr_number: 1,
+        finding_title: "dismissed-finding",
+      },
+      existing_case_id: null,
+    };
+    get.mockImplementation((path: string) => {
+      if (path.includes("/eval-case-seed")) return Promise.resolve(seed);
+      if (path === "/repos") return Promise.resolve([]);
+      throw new Error(`unexpected GET ${path}`);
+    });
+    post.mockResolvedValue(
+      makeCase({
+        id: "new-neg",
+        name: seed.name,
+        expectations: NEGATIVE_EXPECTATIONS,
+        polarity: "must_not_flag",
+      }),
+    );
+    const onClose = vi.fn();
+    renderDialog({ mode: "from-finding", findingId: "f1", onClose });
+
+    expect(await screen.findByDisplayValue(seed.name)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(post).toHaveBeenCalledTimes(1);
+    const [path, body] = post.mock.calls[0] as [string, { expectations: unknown }];
+    expect(path).toBe("/findings/f1/eval-case");
+    expect(body.expectations).toEqual(NEGATIVE_EXPECTATIONS);
+  });
+
+  it("a 409 from create-from-finding shows an inline already-exists message and keeps the dialog open", async () => {
+    const seed = {
+      agent_id: "ag1",
+      agent_name: "Agent",
+      repo_id: "repo1",
+      repo_full_name: "acme/widgets",
+      name: "already-there",
+      input_diff: "--- a/x\n+++ b/x",
+      expectations: [POSITIVE_EXPECTATION],
+      origin: {
+        finding_id: "f1",
+        pr_id: "pr1",
+        pr_number: 1,
+        finding_title: "already-there",
+      },
+      existing_case_id: null,
+    };
+    get.mockImplementation((path: string) => {
+      if (path.includes("/eval-case-seed")) return Promise.resolve(seed);
+      if (path === "/repos") return Promise.resolve([]);
+      throw new Error(`unexpected GET ${path}`);
+    });
+    post.mockRejectedValue(
+      new MockApiError("An eval case already exists for this finding", 409, "eval_case_exists"),
+    );
+    const onClose = vi.fn();
+    renderDialog({ mode: "from-finding", findingId: "f1", onClose });
+
+    expect(await screen.findByDisplayValue(seed.name)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText(
+        "An eval case already exists for this finding. Edit it from the agent's Evals tab.",
+      ),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("rejects a mixed-kind expected-output list on a positive case and sends no request", async () => {
     get.mockResolvedValue([]);
     const caseRecord = makeCase();
-    const { container } = renderDialog({ mode: "edit", caseRecord });
+    renderDialog({ mode: "edit", caseRecord });
 
-    const editor = editorTextarea(container);
+    const editor = editorTextarea();
     fireEvent.change(editor, {
       target: {
         value: JSON.stringify([
@@ -178,9 +277,9 @@ describe("EvalCaseDialog", () => {
   it("rejects an empty expected-output list on a positive case and sends no request", async () => {
     get.mockResolvedValue([]);
     const caseRecord = makeCase();
-    const { container } = renderDialog({ mode: "edit", caseRecord });
+    renderDialog({ mode: "edit", caseRecord });
 
-    const editor = editorTextarea(container);
+    const editor = editorTextarea();
     fireEvent.change(editor, { target: { value: "[]" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -198,17 +297,17 @@ describe("EvalCaseDialog", () => {
     get.mockResolvedValue([]);
     post.mockResolvedValue(makeCase({ id: "new-case", owner_id: "ag7" }));
     const onClose = vi.fn();
-    const { container } = renderDialog({ mode: "new", agentId: "ag7", onClose });
+    renderDialog({ mode: "new", agentId: "ag7", onClose });
 
     // Empty dialog: no name, no diff prefilled.
     expect(screen.getByPlaceholderText("stripe-key-leak")).toHaveValue("");
-    const diffTextarea = container.querySelectorAll("textarea")[0] as HTMLTextAreaElement;
+    const diffTextarea = document.body.querySelectorAll("textarea")[0] as HTMLTextAreaElement;
     expect(diffTextarea).toHaveValue("");
 
     fireEvent.change(screen.getByPlaceholderText("stripe-key-leak"), {
       target: { value: "new-case-name" },
     });
-    const editor = editorTextarea(container);
+    const editor = editorTextarea();
     fireEvent.change(editor, {
       target: {
         value: JSON.stringify([
@@ -221,8 +320,77 @@ describe("EvalCaseDialog", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(post).toHaveBeenCalledTimes(1);
-    const [path] = post.mock.calls[0] as [string, unknown];
+    const [path, body] = post.mock.calls[0] as [string, { repo_id: unknown }];
     expect(path).toBe("/agents/ag7/eval-cases");
+    expect(body.repo_id).toBeNull();
+  });
+
+  it("shows Actual output as Never run yet and disables Run case until the case is saved (edit)", async () => {
+    get.mockResolvedValue([]);
+    renderDialog({ mode: "new", agentId: "ag1" });
+
+    expect(screen.getByText("Actual output")).toBeInTheDocument();
+    const actual = Array.from(document.body.querySelectorAll("textarea")).find(
+      (el) => (el as HTMLTextAreaElement).value === "Never run yet",
+    );
+    expect(actual).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Run case" })).toBeDisabled();
+  });
+
+  it("Run case on an edited case posts a preview and fills Actual output", async () => {
+    get.mockResolvedValue([]);
+    const caseRecord = makeCase({ last_outcome: null });
+    post.mockResolvedValue({
+      case_id: caseRecord.id,
+      stored: false,
+      result: {
+        case_id: caseRecord.id,
+        name: caseRecord.name,
+        status: "passed",
+        pass: true,
+        errored: false,
+        error: null,
+        findings: [
+          {
+            id: "f-preview",
+            severity: "CRITICAL",
+            category: "security",
+            title: "Hardcoded Stripe secret key",
+            file: "src/config.ts",
+            start_line: 11,
+            end_line: 11,
+            rationale: "x",
+            suggestion: null,
+            confidence: 0.9,
+            kind: "finding",
+            trifecta_components: null,
+            evidence: null,
+          },
+        ],
+        raw_findings_count: 1,
+        expected_count: 1,
+        matched_count: 1,
+        cost_usd: 0.01,
+        duration_ms: 100,
+        stored: false,
+      },
+    });
+    renderDialog({ mode: "edit", caseRecord });
+
+    expect(screen.getByRole("button", { name: "Run case" })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Run case" }));
+
+    await waitFor(() =>
+      expect(post.mock.calls.some((c) => c[0] === `/eval-cases/${caseRecord.id}/preview`)).toBe(true),
+    );
+    await waitFor(() =>
+      expect(
+        Array.from(document.body.querySelectorAll("textarea")).some((el) =>
+          (el as HTMLTextAreaElement).value.includes("passed · expected 1, got 1"),
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByText("Preview — not stored")).toBeInTheDocument();
   });
 
   it("confines focus while open and returns it to the opener on close", async () => {

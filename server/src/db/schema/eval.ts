@@ -52,6 +52,11 @@ export const evalCases = pgTable(
   (t) => ({
     ownerIdx: index('eval_cases_owner_idx').on(t.ownerId),
     workspaceIdx: index('eval_cases_workspace_idx').on(t.workspaceId),
+    // One eval case per seeding finding — re-clicking "Turn into eval case"
+    // must not create duplicates. Null origin (hand-made cases) is unrestricted.
+    originFindingUq: uniqueIndex('eval_cases_origin_finding_uq')
+      .on(t.originFindingId)
+      .where(sql`${t.originFindingId} is not null`),
   }),
 );
 

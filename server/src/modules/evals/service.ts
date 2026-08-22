@@ -35,6 +35,7 @@ import { EvalSuiteRunner, resolveCaseContext, type ResolvedCaseContext } from '.
 import {
   AGENT_NOT_FOUND_MESSAGE,
   EVAL_CASE_NOT_FOUND_MESSAGE,
+  EVAL_CASE_EXISTS_FOR_FINDING_MESSAGE,
   EVAL_RUN_ACTIVE_MESSAGE,
   EVAL_RUN_NOT_FOUND_MESSAGE,
   REPO_NOT_FOUND_MESSAGE,
@@ -54,6 +55,15 @@ function isActiveRunConflict(err: unknown): boolean {
     err !== null &&
     (err as { code?: string }).code === '23505' &&
     (err as { constraint_name?: string }).constraint_name === 'eval_suite_runs_one_active_per_agent'
+  );
+}
+
+function isOriginFindingConflict(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: string }).code === '23505' &&
+    (err as { constraint_name?: string }).constraint_name === 'eval_cases_origin_finding_uq'
   );
 }
 
@@ -121,18 +131,18 @@ export class EvalService {
     if (!agent) throw new NotFoundError(AGENT_NOT_FOUND_MESSAGE);
 
     const expectations = resolveExpectations(null, input.expectations);
-    const repoFullName = await this.assertRepo(workspaceId, input.repo_id);
 
     const row = await this.deps.repo.createCase({
       workspaceId,
       ownerId: agentId,
       name: input.name,
       inputDiff: input.input_diff,
-      repoId: input.repo_id,
+      // Content-only (AC-47): ignore body.repo_id for context association.
+      repoId: null,
       expectations,
       notes: input.notes ?? null,
     });
-    return caseRowToDto(row, repoFullName, null);
+    return caseRowToDto(row, null, null);
   }
 
   async updateCase(workspaceId: string, id: string, patch: EvalCaseUpdate): Promise<EvalCase> {
@@ -177,6 +187,8 @@ export class EvalService {
       repoRow,
     );
 
+    const existing = await this.deps.repo.findCaseByOriginFindingId(workspaceId, finding.id);
+
     return {
       agent_id: agentId!,
       agent_name: (await this.deps.agents.getById(workspaceId, agentId!))!.name,
@@ -191,11 +203,12 @@ export class EvalService {
         pr_number: pullNumber,
         finding_title: finding.title,
       },
+      existing_case_id: existing?.id ?? null,
     };
   }
 
-  /** AC-5/AC-46 — `owner_id`/`repo_id` are derived here, never read from the
-   *  request body. */
+  /** AC-5/AC-46 — `owner_id` from the finding's review; `repo_id` always null
+   *  (content-only evals). Body never supplies either. */
   async createFromFinding(
     workspaceId: string,
     findingId: string,
@@ -205,6 +218,11 @@ export class EvalService {
       workspaceId,
       findingId,
     );
+
+    const existing = await this.deps.repo.findCaseByOriginFindingId(workspaceId, finding.id);
+    if (existing) {
+      throw new AppError('eval_case_exists', EVAL_CASE_EXISTS_FOR_FINDING_MESSAGE, 409);
+    }
 
     const expectations =
       body.expectations !== undefined
@@ -223,18 +241,26 @@ export class EvalService {
       inputDiff = sliceDiff(diff, finding.file);
     }
 
-    const row = await this.deps.repo.createCase({
-      workspaceId,
-      ownerId: agentId!,
-      name: body.name,
-      inputDiff,
-      repoId: repoRow.id,
-      expectations,
-      notes: body.notes ?? null,
-      originFindingId: finding.id,
-      originPrId: pullId,
-    });
-    return caseRowToDto(row, repoRow.fullName, null);
+    const row = await this.deps.repo
+      .createCase({
+        workspaceId,
+        ownerId: agentId!,
+        name: body.name,
+        inputDiff,
+        // Content-only evals (AC-46): no repo association for context resolution.
+        repoId: null,
+        expectations,
+        notes: body.notes ?? null,
+        originFindingId: finding.id,
+        originPrId: pullId,
+      })
+      .catch((err) => {
+        if (isOriginFindingConflict(err)) {
+          throw new AppError('eval_case_exists', EVAL_CASE_EXISTS_FOR_FINDING_MESSAGE, 409);
+        }
+        throw err;
+      });
+    return caseRowToDto(row, null, null);
   }
 
   // ---- suite runs (Phase B) -------------------------------------------------

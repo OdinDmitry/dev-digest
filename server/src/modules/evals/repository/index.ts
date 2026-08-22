@@ -58,6 +58,13 @@ export class EvalRepository {
     return this.cases.getById(workspaceId, id);
   }
 
+  findCaseByOriginFindingId(
+    workspaceId: string,
+    originFindingId: string,
+  ): Promise<EvalCaseRow | undefined> {
+    return this.cases.findByOriginFindingId(workspaceId, originFindingId);
+  }
+
   createCase(values: InsertEvalCase): Promise<EvalCaseRow> {
     return this.cases.create(values);
   }

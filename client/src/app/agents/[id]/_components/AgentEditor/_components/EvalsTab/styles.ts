@@ -70,13 +70,27 @@ export const s = {
   row: { display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-elevated)" } satisfies CSSProperties,
   statusIcon: (color: string): CSSProperties => ({ color, flexShrink: 0 }),
   rowMain: { flex: 1, minWidth: 0 } satisfies CSSProperties,
-  nameRow: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  nameRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
   name: { fontSize: 13.5, fontWeight: 600 } satisfies CSSProperties,
   statusText: { fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,
   subtextRow: { fontSize: 12, color: "var(--text-secondary)", marginTop: 2 } satisfies CSSProperties,
-  noContext: { fontSize: 11.5, color: "var(--warn)", marginTop: 2 } satisfies CSSProperties,
   previewNote: { fontSize: 11, color: "var(--accent-text)", marginLeft: 6 } satisfies CSSProperties,
 
+  // Same accent/warn tokens as EvalCaseDialog's polarity banner.
+  polarityChip: (kind: "positive" | "negative"): CSSProperties => ({
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    padding: "2px 7px",
+    borderRadius: 5,
+    whiteSpace: "nowrap",
+    border: "1px solid " + (kind === "positive" ? "var(--accent)" : "var(--warn)"),
+    background: kind === "positive" ? "var(--accent-bg)" : "var(--warn-bg)",
+    color: kind === "positive" ? "var(--accent)" : "var(--warn)",
+  }),
+
+  // Design 05: severity·category chip sits mid-right of the row (between
+  // name/subtext and the action icons), vertically centered — not beside the title.
   chip: {
     fontSize: 10.5,
     fontWeight: 600,
@@ -85,6 +99,7 @@ export const s = {
     borderRadius: 5,
     padding: "2px 7px",
     whiteSpace: "nowrap",
+    flexShrink: 0,
   } satisfies CSSProperties,
 
   actions: { display: "flex", alignItems: "center", gap: 4, flexShrink: 0 } satisfies CSSProperties,

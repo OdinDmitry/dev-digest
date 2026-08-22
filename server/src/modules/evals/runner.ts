@@ -63,43 +63,18 @@ export interface ResolvedCaseContext {
 }
 
 /**
- * Resolve one case's project context exactly the way `execute` does —
- * exported (not a private method) so `EvalService.previewCase` (T11) shares
- * it and the two paths can never diverge. `ContextService.assembleForRun`
- * does the actual work (constraint 1 — reused, not reimplemented); this adds
- * only: (a) `caseRepoId === null` → empty result, resolver never called
- * (AC-49), and (b) a resolver throw (e.g. the case's repo was deleted,
- * constraint 4) → the same empty result with an `excluded` entry carrying
- * the reason. `AssembledRunContext`'s `excluded` is typed to the narrow
- * `ContextExclusionReason` enum (`absent`/`other_repo`/`over_budget`), which
- * cannot express "the resolver itself failed" — hence the broader,
- * free-text-reason `ResolvedCaseContext` shape here instead of reusing
- * Phase A's `contextInputFor` verbatim.
+ * Resolve one case's project context for eval. Content-only (AC-11 / AC-49):
+ * always empty — `assembleForRun` is never called, regardless of `caseRepoId`.
+ * `memo` is unused but kept so call sites (suite execute + preview) stay aligned.
  */
 export async function resolveCaseContext(
-  contextService: ContextService,
-  workspaceId: string,
-  agentId: string,
-  caseRepoId: string | null,
-  memo: Map<string, ResolvedCaseContext>,
+  _contextService: ContextService,
+  _workspaceId: string,
+  _agentId: string,
+  _caseRepoId: string | null,
+  _memo: Map<string, ResolvedCaseContext>,
 ): Promise<ResolvedCaseContext> {
-  if (caseRepoId === null) return { documents: [], excluded: [] };
-
-  const cached = memo.get(caseRepoId);
-  if (cached) return cached;
-
-  let resolved: ResolvedCaseContext;
-  try {
-    const assembled = await contextService.assembleForRun(workspaceId, agentId, caseRepoId);
-    resolved = { documents: assembled.documents, excluded: assembled.excluded };
-  } catch (err) {
-    resolved = {
-      documents: [],
-      excluded: [{ path: '(repository)', reason: `context unavailable: ${(err as Error).message}` }],
-    };
-  }
-  memo.set(caseRepoId, resolved);
-  return resolved;
+  return { documents: [], excluded: [] };
 }
 
 export class EvalSuiteRunner {

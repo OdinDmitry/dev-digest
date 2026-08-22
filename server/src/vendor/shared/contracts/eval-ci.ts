@@ -144,6 +144,8 @@ export const EvalCaseSeed = z.object({
   input_diff: z.string(),
   expectations: z.array(EvalExpectation),
   origin: EvalCaseOrigin,
+  /** Set when this finding already seeded a case — create must not duplicate. */
+  existing_case_id: z.string().nullable(),
 });
 export type EvalCaseSeed = z.infer<typeof EvalCaseSeed>;
 

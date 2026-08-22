@@ -133,6 +133,7 @@ export function useEvalComparison(agentId: string, a: string | null, b: string |
 export function useCreateEvalCase(agentId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: { suppressErrorToast: true },
     mutationFn: (input: EvalCaseInput) =>
       api.post<EvalCase>(`/agents/${agentId}/eval-cases`, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["evals", "cases", agentId] }),
@@ -142,6 +143,7 @@ export function useCreateEvalCase(agentId: string) {
 export function useCreateEvalCaseFromFinding(findingId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: { suppressErrorToast: true },
     mutationFn: (input: EvalCaseInput) =>
       api.post<EvalCase>(`/findings/${findingId}/eval-case`, input),
     onSuccess: (data) =>
@@ -152,6 +154,7 @@ export function useCreateEvalCaseFromFinding(findingId: string) {
 export function useUpdateEvalCase() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { suppressErrorToast: true },
     mutationFn: ({ id, patch }: { id: string; patch: EvalCaseUpdate }) =>
       api.put<EvalCase>(`/eval-cases/${id}`, patch),
     onSuccess: (data) =>
@@ -169,6 +172,7 @@ export function useDeleteEvalCase() {
 
 export function usePreviewEvalCase() {
   return useMutation({
+    meta: { suppressErrorToast: true },
     mutationFn: ({ id }: { id: string }) =>
       api.post<EvalRunResult>(`/eval-cases/${id}/preview`),
   });

@@ -98,6 +98,20 @@ export class EvalCaseRepository {
     return row;
   }
 
+  /** The case seeded from this finding, if any (workspace-scoped). */
+  async findByOriginFindingId(
+    workspaceId: string,
+    originFindingId: string,
+  ): Promise<EvalCaseRow | undefined> {
+    const [row] = await baseQuery(this.db).where(
+      and(
+        eq(t.evalCases.workspaceId, workspaceId),
+        eq(t.evalCases.originFindingId, originFindingId),
+      ),
+    );
+    return row;
+  }
+
   async create(values: InsertEvalCase): Promise<EvalCaseRow> {
     const [inserted] = await this.db
       .insert(t.evalCases)
