@@ -28,8 +28,8 @@ export const NAV: NavGroup[] = [
   },
   {
     // Authoring surface: the reusable skills library, the agents that link
-    // it, and the repo-scoped conventions extractor that feeds it. Later
-    // lessons add the Eval Dashboard to this group.
+    // it, the repo-scoped conventions extractor that feeds it, and the eval
+    // dashboard that scores an agent's cases against those runs.
     section: "SKILLS LAB",
     items: [
       { key: "skills", label: "Skills", icon: "Sparkles", href: "/skills", gKey: "s" },
@@ -41,6 +41,7 @@ export const NAV: NavGroup[] = [
         href: "/repos/:repoId/conventions",
         gKey: "c",
       },
+      { key: "eval", label: "Eval Dashboard", icon: "Gauge", href: "/evals", gKey: "e" },
     ],
   },
 ];
@@ -65,14 +66,18 @@ export interface ShortcutDef {
   group: "Navigation" | "Findings" | "Actions" | "Global";
 }
 
+// "g <key>" is a real shortcut only for nav items that declare a gKey — one
+// entry per item, derived from NAV so a new nav item never needs a second,
+// hand-kept listing here (this file used to enumerate navigation twice: once
+// in NAV, once repeated by hand below it).
+const NAV_SHORTCUTS: ShortcutDef[] = NAV.flatMap((g) => g.items)
+  .filter((it) => it.gKey)
+  .map((it) => ({ keys: `g ${it.gKey}`, label: `Go to ${it.label}`, group: "Navigation" as const }));
+
 export const SHORTCUTS: ShortcutDef[] = [
   { keys: "⌘K", label: "Open command palette", group: "Global" },
   { keys: "?", label: "Show keyboard shortcuts", group: "Global" },
-  { keys: "g p", label: "Go to Pull Requests", group: "Navigation" },
-  { keys: "g x", label: "Go to Project Context", group: "Navigation" },
-  { keys: "g s", label: "Go to Skills", group: "Navigation" },
-  { keys: "g a", label: "Go to Agents", group: "Navigation" },
-  { keys: "g c", label: "Go to Conventions", group: "Navigation" },
+  ...NAV_SHORTCUTS,
   { keys: "j / k", label: "Next / previous finding", group: "Findings" },
   { keys: "a", label: "Accept finding", group: "Findings" },
   { keys: "d", label: "Dismiss finding", group: "Findings" },

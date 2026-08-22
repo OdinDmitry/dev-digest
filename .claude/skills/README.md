@@ -47,3 +47,14 @@ Each skill has:
 - `references.md` or `README.md` — Sources, rationale, version/changelog (optional)
 - Additional topic files — loaded on demand; link them from `SKILL.md` with a note on
   when to read each, so the agent only pulls in what it needs
+
+### Agent `skills:` frontmatter vs on-demand `Read`
+
+Claude Code's agent `skills:` field preloads the whole skill **package**
+(e.g. `fastify-best-practices/` including `rules/`), not just `SKILL.md`.
+Agents in the `/impl` chain (`implementer`, `test-writer`,
+`architecture-reviewer`) preload only `engineering-insights` and load named
+skills via `Read` on `.claude/skills/<name>/SKILL.md` when a plan step or
+diff scope requires them. Agents that run once per feature (`spec-creator`,
+`implementation-planner`) and `/impl-sec`'s `security-reviewer` still use
+full preload.

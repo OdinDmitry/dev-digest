@@ -18,6 +18,7 @@ import {
   type Category,
 } from "@devdigest/ui";
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
+import { EvalCaseDialog } from "@/components/eval-case-dialog/EvalCaseDialog";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "../constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
@@ -42,6 +43,7 @@ export function FindingCard({
 }) {
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const [evalDialogOpen, setEvalDialogOpen] = React.useState(false);
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -50,6 +52,8 @@ export function FindingCard({
   const accepted = !!f.accepted_at;
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
+  // AC-2 — activatable only once a decision (accept/dismiss) has been made.
+  const canTurnIntoEvalCase = accepted || dismissed;
 
   return (
     <div id={`finding-${f.id}`} data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
@@ -109,8 +113,33 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {/* AC-1/AC-2 — always rendered, disabled until a decision exists. */}
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="FlaskConical"
+              disabled={!canTurnIntoEvalCase}
+              onClick={() => setEvalDialogOpen(true)}
+            >
+              {t("finding.turnIntoEvalCase")}
+            </Button>
           </div>
         </div>
+      )}
+
+      {evalDialogOpen && (
+        <EvalCaseDialog
+          mode="from-finding"
+          // FindingRecord carries no `agent_id` (only `review_id`) — the
+          // owning agent is derived server-side from the finding id by the
+          // seed endpoint (`useEvalCaseSeed`) and by
+          // `useCreateEvalCaseFromFinding`, so this prop is never read on
+          // the from-finding path. Flagged to the plan owner; see the
+          // implementer report.
+          agentId=""
+          findingId={f.id}
+          onClose={() => setEvalDialogOpen(false)}
+        />
       )}
     </div>
   );
