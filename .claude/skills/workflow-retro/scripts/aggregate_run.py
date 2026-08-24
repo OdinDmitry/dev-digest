@@ -28,7 +28,7 @@ import os
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Tools whose first string argument is a filesystem path we care about.
@@ -38,6 +38,22 @@ SEARCH_TOOLS = {"Grep": "pattern", "Glob": "pattern"}
 WRITE_TOOLS = {"Write", "Edit", "NotebookEdit"}
 
 AGENT_ID_RE = re.compile(r"agentId:\s*([A-Za-z0-9_-]+)")
+
+# A tool_result can embed a tool's own JSON schema, in which the field reads
+# `agentId: string`. Matching that would stamp a real agent with junk, so a
+# placeholder or an implausibly short token is skipped and the scan continues.
+ID_PLACEHOLDERS = {"string", "uuid", "number", "boolean", "null", "integer"}
+MIN_AGENT_ID_LEN = 12
+
+
+def extract_agent_id(text: str):
+    """First real agentId in `text`, skipping schema placeholders."""
+    for m in AGENT_ID_RE.finditer(text):
+        token = m.group(1)
+        if token.lower() in ID_PLACEHOLDERS or len(token) < MIN_AGENT_ID_LEN:
+            continue
+        return token
+    return None
 MAX_LIST = 25  # never print an unbounded list into someone's context
 
 # Anthropic list prices, USD per million tokens: (input, output).
@@ -77,13 +93,26 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
+# Sort sentinel for agents whose transcript carried no usable timestamp.
+# Must be offset-aware to stay comparable with parse_ts's output below.
+TS_MAX = datetime.max.replace(tzinfo=timezone.utc)
+
+
 def parse_ts(value):
+    """Parse a transcript timestamp as an offset-aware UTC datetime.
+
+    Transcripts mix forms: a "Z"-suffixed timestamp parses as offset-aware,
+    one written without a zone parses as naive, and the two cannot be compared
+    with each other or with a naive sentinel. Everything is normalised to UTC
+    here so every later comparison (sorting, min/max, last-first) is safe.
+    """
     if not value:
         return None
     try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
 
 
 def iter_jsonl(path: Path):
@@ -206,34 +235,44 @@ def map_agent_names(main: dict, main_path: Path) -> dict:
     """Map agentId -> {subagent_type, description, order} from the main transcript.
 
     The Agent tool_use block carries the subagent_type; the agentId only shows
-    up in the tool_result that follows it. Pair them positionally, then repair
-    the pairing wherever a result explicitly names its agentId.
+    up in the tool_result that follows it. They are paired by `tool_use_id`,
+    which is the authoritative link — never positionally. A session contains
+    tool_results that mention an agentId without being an Agent launch (a
+    SendMessage resume names one, and an embedded tool schema mentions the
+    field), so a positional zip drifts from the first such result onward and
+    mislabels every later agent.
     """
-    launches, ids = [], []
+    launches = {}          # tool_use id -> meta
+    order = 0
+    out = {}
     for obj in iter_jsonl(main_path):
         for blk in blocks(obj):
             if not isinstance(blk, dict):
                 continue
             if blk.get("type") == "tool_use" and blk.get("name") == "Agent":
+                use_id = blk.get("id")
+                if not use_id:
+                    continue
                 args = blk.get("input") or {}
-                launches.append({
+                order += 1
+                launches[use_id] = {
                     "subagent_type": args.get("subagent_type") or "general-purpose",
                     "description": args.get("description") or "",
                     "background": bool(args.get("run_in_background")),
-                })
+                    "order": order,
+                }
             elif blk.get("type") == "tool_result":
+                meta = launches.get(blk.get("tool_use_id"))
+                if not meta:
+                    continue        # a tool_result that is not an Agent launch's
                 text = blk.get("content")
                 if isinstance(text, list):
                     text = " ".join(c.get("text", "") for c in text
                                     if isinstance(c, dict))
                 if isinstance(text, str):
-                    m = AGENT_ID_RE.search(text)
-                    if m:
-                        ids.append(m.group(1))
-    out = {}
-    for i, agent_id in enumerate(ids):
-        meta = launches[i] if i < len(launches) else {}
-        out[agent_id] = {**meta, "order": i + 1}
+                    agent_id = extract_agent_id(text)
+                    if agent_id:
+                        out[agent_id] = dict(meta)
     return out
 
 
@@ -297,19 +336,40 @@ def duration(st) -> str:
     return f"{secs / 60:.1f}m"
 
 
-def collect(tasks_dir: Path, transcript: Path | None, root: str | None):
-    agents = []
-    for f in sorted(tasks_dir.glob("*.output")):
-        st = scan_transcript(f)
-        st["agent_id"] = st["agent_id"] or f.stem
-        st["file_stem"] = f.stem
-        agents.append(st)
+def looks_like_agent_transcript(path: Path) -> bool:
+    """True when the file's first parseable line is an agent transcript record.
 
+    A `tasks/` directory also holds the stdout of background Bash commands,
+    which is plain text and yields no JSON object at all. Counting those as
+    subagents inflates the agent count and puts empty rows in every table.
+    """
+    for obj in iter_jsonl(path):
+        return isinstance(obj, dict) and bool(
+            {"type", "message", "sessionId", "agentId"} & set(obj))
+    return False
+
+
+def collect(tasks_dir: Path, transcript: Path | None, root: str | None):
     main = None
     names = {}
     if transcript and transcript.exists():
         main = scan_transcript(transcript)
         names = map_agent_names(main, transcript)
+
+    agents, skipped = [], []
+    for f in sorted(tasks_dir.glob("*.output")):
+        # A file the main transcript names as an Agent launch is an agent even
+        # when its transcript is empty — an empty transcript is not evidence
+        # that nothing happened. Any other file counts only if it reads as a
+        # transcript, which keeps a nested subagent (never named in the main
+        # transcript) while dropping background Bash stdout.
+        if f.stem not in names and not looks_like_agent_transcript(f):
+            skipped.append(f.name)
+            continue
+        st = scan_transcript(f)
+        st["agent_id"] = st["agent_id"] or f.stem
+        st["file_stem"] = f.stem
+        agents.append(st)
 
     for st in agents:
         meta = names.get(st["agent_id"]) or names.get(st["file_stem"]) or {}
@@ -320,13 +380,13 @@ def collect(tasks_dir: Path, transcript: Path | None, root: str | None):
     unordered = [a for a in agents if not a["order"]]
     used = {a["order"] for a in agents if a["order"]}
     nxt = 1
-    for a in sorted(unordered, key=lambda x: x["first_ts"] or datetime.max):
+    for a in sorted(unordered, key=lambda x: x["first_ts"] or TS_MAX):
         while nxt in used:
             nxt += 1
         a["order"] = nxt
         used.add(nxt)
     agents.sort(key=lambda a: a["order"])
-    return agents, main
+    return agents, main, skipped
 
 
 def analyse(agents, root):
@@ -393,7 +453,7 @@ def analyse(agents, root):
     return overlap, repeated, rework, rereads, anomalies
 
 
-def render(agents, main, root, out=sys.stdout):
+def render(agents, main, root, out=sys.stdout, skipped=()):
     p = lambda *a: print(*a, file=out)
     total = Counter()
     for a in agents:
@@ -406,7 +466,11 @@ def render(agents, main, root, out=sys.stdout):
         p(f"session: {main['session_id']}")
         p(f"main-agent turns: {main['assistant_turns']} assistant / "
           f"{main['user_turns']} user")
-    p(f"subagents: {len(agents)}\n")
+    p(f"subagents: {len(agents)}")
+    if skipped:
+        p(f"non-agent files in tasks/ (background command output), "
+          f"not counted: {len(skipped)}")
+    p("")
 
     p("## Agents, in launch order\n")
     p("| # | agent | model | turns | dur | input | output | cache create | cache read | cost | tools |")
@@ -570,7 +634,7 @@ def main() -> int:
     transcript = args.transcript or find_transcript(probe["session_id"], args.project_dir)
     root = norm(str(args.repo_root))
 
-    agents, main_stats = collect(tasks, transcript, root)
+    agents, main_stats, skipped = collect(tasks, transcript, root)
 
     if args.json:
         payload = {
@@ -582,12 +646,13 @@ def main() -> int:
                 "reads": sorted(set(a["reads"])), "writes": list(dict.fromkeys(a["writes"])),
                 "bytes": a["bytes"],
             } for a in agents],
+            "skipped_non_agent_files": skipped,
         }
         json.dump(payload, sys.stdout, indent=2)
         print()
         return 0
 
-    render(agents, main_stats, root)
+    render(agents, main_stats, root, skipped=skipped)
     return 0
 
 
