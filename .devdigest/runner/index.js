@@ -20518,6 +20518,7 @@ const HookScanResult = objectType({
 ;// CONCATENATED MODULE: ../server/src/vendor/shared/contracts/observability.ts
 
 
+
 /**
  * A5 — Observability / Multi-agent contracts (L07).
  *
@@ -20534,21 +20535,12 @@ const HookScanResult = objectType({
 // ---------------------------------------------------------------------------
 // Multi-Agent Review
 // ---------------------------------------------------------------------------
-/** A finding as surfaced in a multi-agent column (subset of FindingRecord). */
-const AgentColumnFinding = objectType({
-    id: stringType(),
-    severity: Severity,
-    category: stringType(),
-    title: stringType(),
-    file: stringType(),
-    start_line: numberType().int(),
-    kind: stringType().nullish(),
-});
 /** One agent's result column in the multi-agent review. */
 const AgentColumn = objectType({
     run_id: stringType(),
     agent_id: stringType(),
     agent_name: stringType(),
+    agent_description: stringType().nullable(),
     provider: stringType().nullable(),
     model: stringType().nullable(),
     status: enumType(['done', 'failed', 'running']),
@@ -20557,25 +20549,30 @@ const AgentColumn = objectType({
     summary: stringType().nullable(),
     duration_ms: numberType().int().nullable(),
     cost_usd: numberType().nullable(),
-    findings: arrayType(AgentColumnFinding),
+    error: stringType().nullable(),
+    findings: arrayType(FindingRecord),
 });
-/** One agent's stance on a contended file:line. */
+/** One agent's stance on a contended file:line range. */
 const ConflictTake = objectType({
     agent_id: stringType(),
-    persona: stringType(),
+    agent_name: stringType().nullable(),
     /** Severity if the agent flagged it, or 'ignored' when it did not. */
     verdict: unionType([Severity, literalType('ignored')]),
-    note: stringType(),
+    /** The agent's own finding title, verbatim; null when verdict === 'ignored'. */
+    note: stringType().nullable(),
 });
 /**
- * A conflict = a file:line that at least one agent flagged and at least one
- * other agent (that also reviewed) did NOT, OR where agents assigned divergent
- * severities. Computed from persisted findings; not stored.
+ * A conflict = a file:line-range that at least one participating agent
+ * flagged and at least one other participating agent did NOT, OR where
+ * participants assigned divergent severities. Computed from persisted
+ * findings; not stored. A row has no synthesized title — it is identified by
+ * its location alone.
  */
 const Conflict = objectType({
     file: stringType(),
-    line: numberType().int(),
-    title: stringType(),
+    start_line: numberType().int(),
+    end_line: numberType().int(),
+    is_conflict: booleanType(),
     takes: arrayType(ConflictTake),
 });
 /** Response of POST /pulls/:id/multi-agent-run and GET /pulls/:id/multi-agent. */
@@ -20585,10 +20582,21 @@ const MultiAgentRun = objectType({
     pr_number: numberType().int().nullish(),
     ran_at: stringType(),
     agent_count: numberType().int(),
+    /** Group wall-clock, not a sum of run durations. */
     total_duration_ms: numberType().int(),
     total_cost_usd: numberType().nullable(),
     columns: arrayType(AgentColumn),
     conflicts: arrayType(Conflict),
+});
+/** Request body of POST /pulls/:id/multi-agent-run. */
+const MultiAgentRunRequest = objectType({
+    agent_ids: arrayType(stringType().uuid()).min(1),
+});
+/** One entry of GET /agents/estimates — the agent's last successful run. */
+const AgentEstimate = objectType({
+    agent_id: stringType(),
+    duration_ms: numberType().int().nullable(),
+    cost_usd: numberType().nullable(),
 });
 // ---------------------------------------------------------------------------
 // Per-agent Stats (GET /agents/:id/stats)
@@ -35280,13 +35288,16 @@ function resolvePrContext(env, readFile = external_node_fs_namespaceObject.readF
     if (!Number.isInteger(prNumber) || prNumber <= 0) {
         throw new RunnerError(`PR_NUMBER must resolve to a positive integer (env PR_NUMBER=${JSON.stringify(env.PR_NUMBER)}, event pull_request.number=${JSON.stringify(pr?.number)})`);
     }
+    const headRepoFullName = pr?.head?.repo?.full_name;
+    const isFork = headRepoFullName != null &&
+        headRepoFullName.toLowerCase() !== repository.toLowerCase();
     return {
         owner,
         repo,
         prNumber,
         title: pr?.title ?? '',
         body: pr?.body ?? '',
-        isFork: pr?.head?.repo?.fork ?? false,
+        isFork,
         headSha: pr?.head?.sha ?? '',
     };
 }
