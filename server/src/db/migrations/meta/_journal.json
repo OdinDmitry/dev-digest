@@ -141,6 +141,13 @@
       "when": 1787428107163,
       "tag": "0019_bitter_pete_wisdom",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787928765008,
+      "tag": "0020_fresh_enchantress",
+      "breakpoints": true
     }
   ]
 }

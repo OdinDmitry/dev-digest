@@ -1,15 +1,45 @@
-import { pgTable, uuid, text, integer, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  timestamp,
+  doublePrecision,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { agents } from './agents';
+import { workspaces } from './core';
 
-export const ciInstallations = pgTable('ci_installations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id')
-    .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  repo: text('repo').notNull(),
-  targetType: text('target_type', { enum: ['gha', 'circle', 'jenkins', 'cli'] }).notNull(),
-  installedAt: timestamp('installed_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const ciInstallations = pgTable(
+  'ci_installations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    repo: text('repo').notNull(),
+    targetType: text('target_type', { enum: ['gha', 'circle', 'jenkins', 'cli'] }).notNull(),
+    installedAt: timestamp('installed_at', { withTimezone: true }).defaultNow().notNull(),
+    // The marker version stamped into the last-committed workflow (AC-8/AC-9).
+    // Null = unknown (never installed with a version marker, or reset) ⇒ never current.
+    workflowVersion: text('workflow_version'),
+    prUrl: text('pr_url'),
+    ciFailOn: text('ci_fail_on', { enum: ['never', 'critical', 'warning', 'any'] })
+      .notNull()
+      .default('critical'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // One installation row per (agent, repo) — install is an upsert, never a
+    // second row for a re-publish.
+    agentRepoUq: uniqueIndex('ci_installations_agent_repo_uq').on(t.agentId, t.repo),
+    workspaceIdx: index('ci_installations_workspace_idx').on(t.workspaceId),
+  }),
+);
 
 export const ciRuns = pgTable('ci_runs', {
   id: uuid('id').primaryKey().defaultRandom(),

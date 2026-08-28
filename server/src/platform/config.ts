@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { z } from 'zod';
 import { homedir } from 'node:os';
-import { join, isAbsolute, resolve } from 'node:path';
+import { join, isAbsolute, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Central, zod-validated environment config. Loaded once at startup.
@@ -29,6 +30,11 @@ const EnvSchema = z.object({
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
+  // Absolute path to the ncc-bundled agent-runner (`agent-runner/dist/index.js`
+  // by default — git-ignored, built via `cd agent-runner && pnpm build`). The CI
+  // export refuses (AC-5) when this file is missing rather than silently
+  // shipping a broken/empty runner.
+  DEVDIGEST_RUNNER_BUNDLE: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // `.env` (and .env.example) ship `LOG_LEVEL=` empty; an empty string is not a
   // valid enum member, so coerce '' → undefined to fall through to the default.
@@ -46,6 +52,14 @@ export type AppConfig = {
   cloneDir: string;
   /** Absolute path to the writable secrets store (BYO keys from the UI). */
   secretsPath: string;
+  /**
+   * Absolute path to the ncc-bundled agent-runner (`agent-runner/dist/index.js`)
+   * embedded verbatim into an exported `devdigest/ci` PR. Git-ignored and not
+   * built by `./scripts/dev.sh` — `readRunnerBundle` returning null (file
+   * missing) is the normal state of a fresh checkout, not an error to work
+   * around (server/insights.md).
+   */
+  runnerBundlePath: string;
   nodeEnv: 'development' | 'test' | 'production';
   logLevel: string;
   /** Allowed CORS origin for the Next.js dev server. */
@@ -66,12 +80,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  // Three levels up resolves to the repo root from both `src/platform/` (tsx/vitest)
+  // and the built `dist/platform/` (pnpm build) — same directory depth either way.
+  const defaultRunnerBundlePath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../agent-runner/dist/index.js',
+  );
+  const runnerBundlePath = parsed.DEVDIGEST_RUNNER_BUNDLE ?? defaultRunnerBundlePath;
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
     webPort: parsed.WEB_PORT,
     cloneDir,
     secretsPath: join(homedir(), '.devdigest', 'secrets.json'),
+    runnerBundlePath,
     nodeEnv: parsed.NODE_ENV,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,

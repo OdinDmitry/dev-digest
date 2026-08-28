@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Verdict, Finding } from './findings.js';
-import { EvalExpectation, EvalCaseOrigin, EvalRunState, EvalPerTrace, Conformance } from './knowledge.js';
+import { EvalExpectation, EvalCaseOrigin, EvalRunState, EvalPerTrace, Conformance, Provider, CiFailOn } from './knowledge.js';
 
 /**
  * A4 — Eval / CI / Compose / Conformance API contracts (L06).
@@ -194,45 +194,128 @@ export type ComposeReviewPreview = z.infer<typeof ComposeReviewPreview>;
 export const CiTarget = z.enum(['gha', 'circle', 'jenkins', 'cli']);
 export type CiTarget = z.infer<typeof CiTarget>;
 
-/** One generated file in the CI bundle (path + editable contents). */
+/** Shape version of AgentManifest. Bump when the manifest's SHAPE changes. */
+export const MANIFEST_VERSION = 1;
+/** Stamped into the generated workflow and recorded on the installation. */
+export const WORKFLOW_VERSION = '1';
+
+export const CiPostAs = z.enum(['github_review', 'pr_comment', 'none']);
+export type CiPostAs = z.infer<typeof CiPostAs>;
+export const CiTriggerEvent = z.enum(['opened', 'synchronize', 'reopened']);
+export type CiTriggerEvent = z.infer<typeof CiTriggerEvent>;
+export const CiVerdict = z.enum(['approved', 'changes_requested', 'commented', 'skipped']);
+export type CiVerdict = z.infer<typeof CiVerdict>;
+
+/**
+ * One generated file in the CI bundle (path + editable contents). `editable`
+ * is explicit, never defaulted — exactly one generated file is editable and
+ * the generator always says which.
+ */
 export const CiFile = z.object({
   path: z.string(),
   contents: z.string(),
-  editable: z.boolean().default(true),
+  editable: z.boolean(),
 });
 export type CiFile = z.infer<typeof CiFile>;
 
-/** Request body for `POST /agents/:id/export-ci`. */
+/**
+ * AgentManifest — the agent contract shared by the studio and the CI runner.
+ *
+ * The studio (`CiService`) WRITES this shape to `.devdigest/agents/<slug>.yaml`;
+ * the agent-runner READS it. Keeping one Zod schema for both ends guarantees the
+ * formats never drift. `skills` are slugs resolved to `.devdigest/skills/<slug>.md`.
+ */
+export const AgentManifest = z.object({
+  manifest_version: z.number().int().positive().default(MANIFEST_VERSION),
+  name: z.string().min(1),
+  provider: Provider.default('openrouter'),
+  model: z.string().min(1),
+  system_prompt: z.string(),
+  // Tolerate both a missing key and an explicit `null` (YAML `skills:` with no
+  // value parses to null, which `.default([])` does NOT catch) — normalize both
+  // to an empty array so manifests without skills validate cleanly.
+  skills: z
+    .array(z.string())
+    .nullish()
+    .transform((v) => v ?? []),
+  strategy: z.enum(['auto', 'single-pass', 'map-reduce']).default('auto'),
+  // CI gate policy (see CiFailOn) — when the posted review should BLOCK
+  // (REQUEST_CHANGES + fail the check) vs just comment. Default: block on critical.
+  ci_fail_on: CiFailOn.default('critical'),
+  // Publication mode carried through from the export request (AC-11).
+  post_as: CiPostAs.default('github_review'),
+});
+export type AgentManifest = z.infer<typeof AgentManifest>;
+/** Caller-facing input type — `.default()` fields stay optional. */
+export type AgentManifestInput = z.input<typeof AgentManifest>;
+
+/**
+ * AC-4. `provided_by_platform` is a property of the PLATFORM, never a lookup
+ * against any secret store — the studio never reads a secret's value.
+ */
+export const CiSecretExpectation = z.object({
+  key: z.string(),
+  provided_by_platform: z.boolean(),
+});
+export type CiSecretExpectation = z.infer<typeof CiSecretExpectation>;
+
+/** Request body for the CI preview/install routes. */
 export const CiExportInput = z.object({
-  repo: z.string().min(1), // "owner/name"
+  repo_id: z.string().uuid(),
   target: CiTarget.default('gha'),
-  /** "open_pr" opens a PR with the files; "files" just returns/persists them. */
-  action: z.enum(['open_pr', 'files']).default('open_pr'),
-  post_as: z.enum(['github_review', 'pr_comment', 'none']).default('github_review'),
-  triggers: z.array(z.string()).default(['opened', 'synchronize', 'reopened']),
-  base: z.string().default('main'),
+  post_as: CiPostAs.default('github_review'),
+  triggers: z.array(CiTriggerEvent).min(1).default(['opened', 'synchronize']),
+  /** null → the repo's default branch. */
+  base: z.string().min(1).nullish(),
+  /** AC-22; null → generate it. */
+  workflow_contents: z.string().nullish(),
 });
 export type CiExportInput = z.infer<typeof CiExportInput>;
 /** Caller-facing input type — `.default()` fields stay optional (web hooks). */
 export type CiExportInputBody = z.input<typeof CiExportInput>;
 
+/** Response of the preview route. No GitHub side effect. */
+export const CiExportPreview = z.object({
+  files: z.array(CiFile), // AC-2
+  workflow_version: z.string(),
+  expected_secrets: z.array(CiSecretExpectation),
+  repo: z.string(), // "owner/name", resolved server-side
+  base: z.string(),
+  ci_fail_on: CiFailOn, // the threshold that would be exported
+  skill_count: z.number().int(), // 0 → "no skills attached"
+});
+export type CiExportPreview = z.infer<typeof CiExportPreview>;
+
 /** A persisted CI installation (mirrors `ci_installations`). */
 export const CiInstallation = z.object({
   id: z.string(),
   agent_id: z.string(),
+  agent_name: z.string().nullable(),
   repo: z.string(),
   target_type: CiTarget,
   installed_at: z.string(),
+  updated_at: z.string(),
+  workflow_version: z.string().nullable(), // null = unknown ⇒ NOT current
+  pr_url: z.string().nullable(),
+  ci_fail_on: CiFailOn,
+  current: z.boolean(), // AC-9, computed by installationToDto
 });
 export type CiInstallation = z.infer<typeof CiInstallation>;
 
-/** Response of `POST /agents/:id/export-ci`. */
+/** Response of the install route. */
 export const CiExport = z.object({
   installation: CiInstallation,
   files: z.array(CiFile),
-  pr_url: z.string().nullable(),
+  pr_url: z.string(),
 });
 export type CiExport = z.infer<typeof CiExport>;
+
+/** AC-3 — the answer the wizard blocks on. */
+export const CiWorkflowValidation = z.object({
+  valid: z.boolean(),
+  error: z.string().nullable(),
+});
+export type CiWorkflowValidation = z.infer<typeof CiWorkflowValidation>;
 
 export const CiRunStatus = z.enum(['succeeded', 'failed', 'no_findings', 'running']);
 export type CiRunStatus = z.infer<typeof CiRunStatus>;
