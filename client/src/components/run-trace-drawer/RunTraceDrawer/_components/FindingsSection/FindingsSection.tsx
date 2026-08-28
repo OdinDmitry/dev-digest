@@ -8,7 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
-import { SEV_COLOR } from "../../../constants";
+import { SEV_COLOR } from "@/lib/severity";
 
 export function FindingsSection({ findings }: { findings: FindingRecord[] }) {
   const t = useTranslations("runs");

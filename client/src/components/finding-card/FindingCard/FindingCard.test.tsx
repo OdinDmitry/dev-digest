@@ -3,9 +3,9 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/re
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FindingRecord, EvalCaseSeed } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
-import evalMessages from "../../../../../../../../messages/en/eval.json";
-import commonMessages from "../../../../../../../../messages/en/common.json";
+import messages from "../../../../messages/en/prReview.json";
+import evalMessages from "../../../../messages/en/eval.json";
+import commonMessages from "../../../../messages/en/common.json";
 
 const get = vi.fn();
 vi.mock("@/lib/api", () => ({
@@ -112,6 +112,29 @@ describe("FindingCard (smoke, both themes)", () => {
     expect(onAction).toHaveBeenCalledWith("accept");
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
+  });
+
+  it("renders exactly three action buttons — Accept, Dismiss, Turn into eval case — and no Learn or Reply to author control (AC-17)", () => {
+    // repoFullName + headSha turn the file:line MonoLink into a real <a>
+    // (not a <button>, per client/insights.md's MonoLink note) so the only
+    // buttons left in the DOM are the three action buttons themselves.
+    renderWithIntl(
+      <FindingCard
+        f={FINDING}
+        defaultExpanded
+        onAction={() => {}}
+        repoFullName="acme/widgets"
+        headSha="a1b2c3d4"
+      />,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(3);
+    expect(buttons.map((b) => b.textContent)).toEqual(["Accept", "Dismiss", "Turn into eval case"]);
+
+    expect(screen.queryByRole("button", { name: /learn/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reply to author/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/reply to author/i)).not.toBeInTheDocument();
   });
 });
 

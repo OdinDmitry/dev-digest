@@ -161,7 +161,13 @@ export function useFindingAction() {
         reply ? { reply } : undefined,
       ),
     onSuccess: (_d, { prId }) => {
-      if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      if (prId) {
+        qc.invalidateQueries({ queryKey: ["reviews", prId] });
+        // A finding accepted/dismissed on the multi-agent results screen lives
+        // in the same `findings` row — keep that view in sync too (no-op when
+        // nothing has that query mounted).
+        qc.invalidateQueries({ queryKey: ["multi-agent", prId] });
+      }
     },
   });
 }

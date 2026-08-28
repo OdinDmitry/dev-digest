@@ -19,9 +19,9 @@ import {
 } from "@devdigest/ui";
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
 import { EvalCaseDialog } from "@/components/eval-case-dialog/EvalCaseDialog";
-import { SEV_COLOR, SEV_COLOR_FALLBACK } from "../constants";
+import { SEV_COLOR, SEV_COLOR_FALLBACK } from "@/lib/severity";
 import { lineLabel } from "./helpers";
-import { githubBlobUrl } from "../../../../../../../lib/github-urls";
+import { githubBlobUrl } from "@/lib/github-urls";
 import { s } from "./styles";
 
 export function FindingCard({

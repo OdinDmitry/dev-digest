@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { RunRequest, MultiAgentRunRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -41,6 +41,31 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
       req.log,
     );
     return { pr_id: req.params.id, runs, reviews };
+  });
+
+  // ---- Run a multi-agent review (fans out to N LLM runs; same tight limit) --
+  app.post(
+    '/pulls/:id/multi-agent-run',
+    {
+      schema: { params: IdParams, body: MultiAgentRunRequest },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      const { multi_agent_run_id, runs } = await service.startMultiAgentReview(
+        workspaceId,
+        req.params.id,
+        req.body.agent_ids,
+        req.log,
+      );
+      return { multi_agent_run_id, runs };
+    },
+  );
+
+  // ---- The latest multi-agent group for a PR (columns + conflicts) --------
+  app.get('/pulls/:id/multi-agent', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.multiAgentForPull(workspaceId, req.params.id);
   });
 
   // ---- SSE: live run events (replay buffer first, then live; ends on done) -
