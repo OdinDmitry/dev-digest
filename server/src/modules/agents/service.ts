@@ -1,6 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
+  AgentEstimate,
   AgentListStats,
   AgentSkillLink,
   AgentVersion,
@@ -78,6 +79,28 @@ export class AgentsService {
       this.container.skillsRepo.countsByAgent(workspaceId),
     ]);
     return mergeAgentStats(agents, runStats, skillCounts);
+  }
+
+  /**
+   * Per-agent duration/cost estimate for the multi-agent picker, from each
+   * agent's own last successful run. Agents with no successful run yet get
+   * both figures null; a successful run with a null cost yields a null cost
+   * alongside a non-null duration (AC-7, AC-8) — never a derived/zero value.
+   */
+  async estimates(workspaceId: string): Promise<AgentEstimate[]> {
+    const [agents, lastRuns] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.container.reviewRepo.lastSuccessfulRunByAgent(workspaceId),
+    ]);
+    const byAgentId = new Map(lastRuns.map((r) => [r.agentId, r]));
+    return agents.map((agent) => {
+      const last = byAgentId.get(agent.id);
+      return {
+        agent_id: agent.id,
+        duration_ms: last?.durationMs ?? null,
+        cost_usd: last?.costUsd ?? null,
+      };
+    });
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */

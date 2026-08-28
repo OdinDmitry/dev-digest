@@ -1,0 +1,12 @@
+{
+  "name": "Multi-Agent Review sidebar item lands on its own configure-run screen",
+  "description": "Loads the app root, clicks the sidebar's Multi-Agent Review nav item (client/src/vendor/ui/nav.ts key 'multi-agent', the last item in the GLOBAL group — 'find role link' is used rather than 'find text' since it may not already be scrolled into view in the sidebar's own scrollable region, per e2e/insights.md 2026-08-08), and confirms /multi-agent renders its OWN configure-run copy — not merely that the URL changed. A URL-only assertion would pass even against a build where the route falls back to something generic (client/insights.md:73, same reasoning as e2e/specs/13-eval-dashboard.flow.json); 'Pick a pull request first' (client/src/app/multi-agent/_components/ConfigureRun/ConfigureRun.tsx, page.configure.pickPrFirst) exists only on this screen, before any PR is chosen. Read-only: no control that starts a run is clicked, so this flow never triggers a model call.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "initial data fetch settles" },
+    { "cmd": ["find", "role", "link", "click", "--name", "Multi-Agent Review"], "label": "click the sidebar's Multi-Agent Review nav item" },
+    { "cmd": ["wait", "--url", "/multi-agent"], "label": "multi-agent configure-run route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "configure-run page settles" },
+    { "cmd": ["wait", "--text", "Pick a pull request first"], "label": "the configure-run screen's own empty state renders — copy that exists only here" }
+  ]
+}

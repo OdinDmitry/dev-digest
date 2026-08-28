@@ -88,6 +88,16 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     return service.stats(workspaceId);
   });
 
+  /**
+   * Per-agent duration/cost estimate for the multi-agent picker, from each
+   * agent's last successful run. Declared before `/agents/:id` for the same
+   * static-segment-first reason as `/agents/stats` above.
+   */
+  app.get('/agents/estimates', async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.estimates(workspaceId);
+  });
+
   app.get('/agents/:id', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const agent = await service.get(workspaceId, req.params.id);

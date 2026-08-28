@@ -1,4 +1,5 @@
 import type { EvalExpectation, EvalExpectationKind, Finding } from '@devdigest/shared';
+import type { Zone } from '../_shared/zones.js';
 
 /**
  * modules/evals/scoring.ts — the mechanical, model-free eval scorer
@@ -12,35 +13,14 @@ import type { EvalExpectation, EvalExpectationKind, Finding } from '@devdigest/s
  *
  * Scoring here never calls a structured-output API or any network provider —
  * it is arithmetic over already-grounded results (AC-19).
+ *
+ * `Zone`/`normalizeZonePath`/`zonesOverlap` moved to `../_shared/zones.js`
+ * (also used by multi-agent conflict clustering) and are re-exported here
+ * unchanged so existing importers of this module keep working.
  */
 
-export interface Zone {
-  file: string;
-  start: number;
-  end: number;
-}
-
-/**
- * Repository-relative, forward-slash path, with any single leading diff-side
- * prefix (`a/` or `b/`) stripped. Comparison stays case-sensitive to agree
- * with the citation-grounding gate.
- */
-export function normalizeZonePath(path: string): string {
-  const posix = path.replace(/\\/g, '/');
-  if (posix.startsWith('a/') || posix.startsWith('b/')) return posix.slice(2);
-  return posix;
-}
-
-/** Two zones match when they name the same file and their closed line ranges
- *  overlap in at least one line. Not used for pass/fail (AC-12). */
-export function zonesOverlap(a: Zone, b: Zone): boolean {
-  if (normalizeZonePath(a.file) !== normalizeZonePath(b.file)) return false;
-  const aLo = Math.min(a.start, a.end);
-  const aHi = Math.max(a.start, a.end);
-  const bLo = Math.min(b.start, b.end);
-  const bHi = Math.max(b.start, b.end);
-  return aLo <= bHi && bLo <= aHi;
-}
+export type { Zone };
+export { normalizeZonePath, zonesOverlap } from '../_shared/zones.js';
 
 export function expectationZone(e: EvalExpectation): Zone {
   return { file: e.file, start: e.start_line, end: e.end_line };
@@ -50,8 +30,28 @@ export function findingZone(f: Finding): Zone {
   return { file: f.file, start: f.start_line, end: f.end_line };
 }
 
+/**
+ * `matchesAny` needs `zonesOverlap` as a runtime value, but this module keeps
+ * a type-only import surface (AC-19's purity test). `overlapsLocally` is a
+ * private, unexported duplicate of `../_shared/zones.js`'s `zonesOverlap`
+ * body — the canonical, exported copy other modules import lives there;
+ * this one exists only so this file never needs a runtime import of its own.
+ */
+function overlapsLocally(a: Zone, b: Zone): boolean {
+  const normalize = (path: string): string => {
+    const posix = path.replace(/\\/g, '/');
+    return posix.startsWith('a/') || posix.startsWith('b/') ? posix.slice(2) : posix;
+  };
+  if (normalize(a.file) !== normalize(b.file)) return false;
+  const aLo = Math.min(a.start, a.end);
+  const aHi = Math.max(a.start, a.end);
+  const bLo = Math.min(b.start, b.end);
+  const bHi = Math.max(b.start, b.end);
+  return aLo <= bHi && bLo <= aHi;
+}
+
 export function matchesAny(z: Zone, expectations: EvalExpectation[]): boolean {
-  return expectations.some((e) => zonesOverlap(z, expectationZone(e)));
+  return expectations.some((e) => overlapsLocally(z, expectationZone(e)));
 }
 
 export interface CaseScore {

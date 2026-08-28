@@ -81,6 +81,12 @@ export class ReviewRepository {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
+  /** Reviews for a set of runs, each with its findings — a multi-agent
+   *  group's columns read in one round trip. */
+  reviewsByRunIds(runIds: string[]): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+    return reviewRepo.reviewsByRunIds(this.db, runIds);
+  }
+
   getReview(reviewId: string): Promise<ReviewRow | undefined> {
     return reviewRepo.getReview(this.db, reviewId);
   }
@@ -172,6 +178,8 @@ export class ReviewRepository {
     prId: string;
     provider: string | null;
     model: string | null;
+    /** Group this run belongs to when part of a multi-agent review. */
+    multiAgentRunId?: string | null;
   }): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
   }
@@ -212,5 +220,37 @@ export class ReviewRepository {
 
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
+  }
+
+  // ---- observability: multi_agent_runs -----------------------------------
+
+  /** Create a multi_agent_runs group row; returns its id. */
+  createMultiAgentRun(values: { workspaceId: string; prId: string }): Promise<string> {
+    return runRepo.createMultiAgentRun(this.db, values);
+  }
+
+  /** The most recent multi-agent group for a PR, workspace-scoped. */
+  latestMultiAgentRunForPull(
+    workspaceId: string,
+    prId: string,
+  ): Promise<runRepo.MultiAgentRunGroup | undefined> {
+    return runRepo.latestMultiAgentRunForPull(this.db, workspaceId, prId);
+  }
+
+  /** Every agent_runs row in a multi-agent group, joined to its agent's
+   *  name + description. */
+  runsForMultiAgentRun(
+    groupId: string,
+  ): Promise<
+    { run: typeof t.agentRuns.$inferSelect; agentName: string | null; agentDescription: string | null }[]
+  > {
+    return runRepo.runsForMultiAgentRun(this.db, groupId);
+  }
+
+  /** Each agent's last successful (status='done') run in the workspace. */
+  lastSuccessfulRunByAgent(
+    workspaceId: string,
+  ): Promise<{ agentId: string; durationMs: number | null; costUsd: number | null }[]> {
+    return runRepo.lastSuccessfulRunByAgent(this.db, workspaceId);
   }
 }

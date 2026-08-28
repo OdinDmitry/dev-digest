@@ -116,6 +116,26 @@ export async function latestFindingLocations(db: Db, prId: string): Promise<Find
   return rows.map((r) => ({ findingId: r.id, file: r.file, line: r.startLine, severity: r.severity }));
 }
 
+/**
+ * Reviews for a set of runs, each with its findings — one round trip for a
+ * whole multi-agent group's columns (`reviews.run_id` has no FK to
+ * `agent_runs`, see `deleteAgentRun` above for why).
+ */
+export async function reviewsByRunIds(
+  db: Db,
+  runIds: string[],
+): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+  if (runIds.length === 0) return [];
+  const reviews = await db.select().from(t.reviews).where(inArray(t.reviews.runId, runIds));
+  if (reviews.length === 0) return [];
+  const ids = reviews.map((r) => r.id);
+  const findings = await db.select().from(t.findings).where(inArray(t.findings.reviewId, ids));
+  return reviews.map((review) => ({
+    review,
+    findings: findings.filter((f) => f.reviewId === review.id),
+  }));
+}
+
 export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | undefined> {
   const [row] = await db.select().from(t.reviews).where(eq(t.reviews.id, reviewId));
   return row;

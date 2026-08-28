@@ -1,12 +1,19 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type {
+  AgentColumn,
+  FindingActionKind,
+  MultiAgentRun,
+  RunEventKind,
+  RunTrace,
+} from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
-import { reviewToDto } from './helpers.js';
+import { reviewToDto, totalGroupDurationMs, runIdsOf, columnsFromRuns } from './helpers.js';
+import { buildConflicts } from './multi-agent.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -41,13 +48,24 @@ export class ReviewService {
   // ===========================================================================
 
   /**
-   * Resolve which agents to run. `all` → all enabled agents; else a single agent.
+   * Resolve which agents to run. `all` → all enabled agents; `agentIds` →
+   * each id resolved workspace-scoped, 404 on any miss, returned in the
+   * order given (panel order); else a single agent.
    */
   async resolveTargets(
     workspaceId: string,
-    opts: { agentId?: string; all?: boolean },
+    opts: { agentId?: string; all?: boolean; agentIds?: string[] },
   ): Promise<AgentRow[]> {
     if (opts.all) return this.agents.listEnabled(workspaceId);
+    if (opts.agentIds) {
+      const resolved: AgentRow[] = [];
+      for (const id of opts.agentIds) {
+        const agent = await this.agents.getById(workspaceId, id);
+        if (!agent) throw new NotFoundError('Agent not found');
+        resolved.push(agent);
+      }
+      return resolved;
+    }
     if (opts.agentId) {
       const agent = await this.agents.getById(workspaceId, opts.agentId);
       if (!agent) throw new NotFoundError('Agent not found');
@@ -105,6 +123,7 @@ export class ReviewService {
     prId: string,
     targets: AgentRow[],
     logger?: Logger,
+    multiAgentRunId?: string,
   ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
     const pull = await this.repo.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
@@ -123,6 +142,7 @@ export class ReviewService {
         prId,
         provider: agent.provider,
         model: agent.model,
+        multiAgentRunId: multiAgentRunId ?? null,
       });
       runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
       jobs.push({ agent, runId });
@@ -175,5 +195,68 @@ export class ReviewService {
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return this.repo.getRunTrace(runId);
+  }
+
+  // ===========================================================================
+  // Multi-agent review
+  // ===========================================================================
+
+  /**
+   * Start a multi-agent review: one `multi_agent_runs` group row, then the
+   * chosen agents are dispatched through the existing `runReview` so every
+   * agent run carries that group id.
+   */
+  async startMultiAgentReview(
+    workspaceId: string,
+    prId: string,
+    agentIds: string[],
+    logger?: Logger,
+  ): Promise<{
+    multi_agent_run_id: string;
+    runs: { run_id: string; agent_id: string; agent_name: string }[];
+  }> {
+    const targets = await this.resolveTargets(workspaceId, { agentIds });
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const multiAgentRunId = await this.repo.createMultiAgentRun({ workspaceId, prId });
+    const { runs } = await this.runReview(workspaceId, prId, targets, logger, multiAgentRunId);
+    return { multi_agent_run_id: multiAgentRunId, runs };
+  }
+
+  /**
+   * The latest multi-agent group for a PR: its columns (T11's mapper) and the
+   * disagreement block derived from them (T6). `total_duration_ms` is the
+   * group's own wall-clock — `max(finished_at) − ran_at` once every run is
+   * terminal, else `now − ran_at` — never a sum of the columns' durations.
+   */
+  async multiAgentForPull(workspaceId: string, prId: string): Promise<MultiAgentRun | null> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+
+    const group = await this.repo.latestMultiAgentRunForPull(workspaceId, prId);
+    if (!group) return null;
+
+    const runRows = await this.repo.runsForMultiAgentRun(group.id);
+    const reviews = await this.repo.reviewsByRunIds(runIdsOf(runRows));
+    const columns: AgentColumn[] = columnsFromRuns(runRows, reviews);
+
+    const conflicts = buildConflicts(columns);
+
+    const costs = columns.map((c) => c.cost_usd).filter((c): c is number => c !== null);
+    const total_cost_usd = costs.length > 0 ? costs.reduce((sum, c) => sum + c, 0) : null;
+
+    const total_duration_ms = totalGroupDurationMs(group.ranAt, runRows);
+
+    return {
+      id: group.id,
+      pr_id: group.prId,
+      pr_number: pull.number,
+      ran_at: group.ranAt.toISOString(),
+      agent_count: columns.length,
+      total_duration_ms,
+      total_cost_usd,
+      columns,
+      conflicts,
+    };
   }
 }

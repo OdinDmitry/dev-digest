@@ -1,0 +1,70 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for ConfigureRun (`/multi-agent`). */
+export const s = {
+  page: {
+    padding: 28,
+    maxWidth: 640,
+    margin: "0 auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 24,
+  },
+  title: { fontSize: 20, fontWeight: 700 },
+  sectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  label: { fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" },
+  linkButton: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontSize: 12,
+    color: "var(--accent)",
+    cursor: "pointer",
+    minHeight: 24,
+    minWidth: 24,
+  },
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: 10,
+  },
+  row: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    padding: "6px 2px",
+  },
+  estimate: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
+  emptyState: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+    border: "1px dashed var(--border)",
+    borderRadius: 8,
+    padding: "24px 16px",
+    textAlign: "center",
+  },
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    paddingTop: 16,
+    borderTop: "1px solid var(--border)",
+  },
+  aggregate: { fontSize: 13, color: "var(--text-secondary)" },
+  incomplete: { color: "var(--warn)" },
+} satisfies Record<string, CSSProperties>;
