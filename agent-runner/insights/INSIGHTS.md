@@ -11,6 +11,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 ## What Doesn't Work
 
+2026-08-29 — `pull_request.head.repo.fork === true` does **not** mean "this PR was opened from a contributor fork". On GitHub it means "the head repository object is itself a fork of another repo" — so a course-starter clone like `OdinDmitry/dev-digest` (forked from the template) reports `fork: true` even when the PR head is `OdinDmitry:L07-ci-test` → `OdinDmitry/dev-digest`. AC-12's "PR from a fork" is detected by `head.repo.full_name !== GITHUB_REPOSITORY` (same check as `.github/workflows/evals.yml` `model-evals` job `if:`), not by the `fork` boolean. ref: agent-runner/src/context.ts:91
+
 2026-07-08 — `pnpm typecheck` in `agent-runner` fails with `Cannot find module 'zod'` / `'openai'` errors pointing at `reviewer-core/src/llm/*.ts` if `reviewer-core/node_modules` was never installed. Because this repo is NOT a monorepo (no `pnpm-workspace.yaml`, no hoisting across packages), TypeScript's `moduleResolution: "Bundler"` walks up the ancestor directories of the *importing file* — `reviewer-core/src/llm/` → `reviewer-core/` → repo root — and never reaches `agent-runner/node_modules` (a sibling, not an ancestor). Fix: `cd reviewer-core && pnpm install` once (creates gitignored `node_modules`, touches no tracked files) — this is also required for `cd server && pnpm typecheck` to pass cleanly, so it is not agent-runner-specific. ref: agent-runner/tsconfig.json:20
 
 ## Codebase Patterns

@@ -27,8 +27,9 @@ export interface PrContext {
   title: string;
   /** PR body/description (untrusted, author-controlled). */
   body: string;
-  /** True when the PR head is a fork — informational only; the workflow
-   *  itself is responsible for never scheduling this job for fork PRs. */
+  /** True when the PR head repo differs from `GITHUB_REPOSITORY` (a contributor
+   *  fork), NOT when the target repo itself is a GitHub fork of another project
+   *  (`head.repo.fork === true` on a course-starter clone). */
   isFork: boolean;
   /** `pull_request.head.sha` — the commit under review. Defaults to `''`
    *  when the event payload carries none (e.g. an unresolvable/absent
@@ -41,7 +42,7 @@ interface PullRequestEventPayload {
     number?: number;
     title?: string;
     body?: string | null;
-    head?: { sha?: string; repo?: { fork?: boolean } | null };
+    head?: { sha?: string; repo?: { fork?: boolean; full_name?: string } | null };
   };
 }
 
@@ -87,13 +88,18 @@ export function resolvePrContext(
     );
   }
 
+  const headRepoFullName = pr?.head?.repo?.full_name;
+  const isFork =
+    headRepoFullName != null &&
+    headRepoFullName.toLowerCase() !== repository.toLowerCase();
+
   return {
     owner,
     repo,
     prNumber,
     title: pr?.title ?? '',
     body: pr?.body ?? '',
-    isFork: pr?.head?.repo?.fork ?? false,
+    isFork,
     headSha: pr?.head?.sha ?? '',
   };
 }
