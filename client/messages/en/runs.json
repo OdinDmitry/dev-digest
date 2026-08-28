@@ -5,12 +5,19 @@
   },
   "column": {
     "noFindings": "No findings.",
-    "findingsCount": "{count, plural, one {# finding} other {# findings}}"
+    "findingsCount": "{count, plural, one {# finding} other {# findings}}",
+    "state": {
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "announce": "{agent} is now {state}"
   },
   "conflicts": {
     "title": "Where agents disagree",
     "onlyConflicts": "Show only conflicts",
     "empty": "No conflicts — the agents agree on every flagged location.",
+    "emptyAll": "None of the agents flagged anything in this run.",
     "didNotFlag": "did not flag"
   },
   "tabs": {
@@ -114,26 +121,38 @@
   },
   "page": {
     "title": "Multi-Agent Review",
-    "subtitle": "this PR through every enabled agent in parallel",
+    "subtitle": "this PR through the agents you pick, in parallel",
     "selectPr": "Select PR",
     "prItem": "#{number} · {title}",
     "view": {
       "columns": "columns",
       "tabs": "tabs"
     },
-    "runAll": "Run all agents",
     "running": "Running…",
-    "meta": "{count} agents · fan-out via p-queue · {duration}s total · {cost}",
-    "noAgents": {
-      "title": "Enable agents to run reviews",
-      "body": "Multi-agent review runs the PR through every enabled agent in parallel. You have no agents enabled yet.",
-      "cta": "Go to Agents"
-    },
+    "meta": "{count} agents · {duration} total · {cost}",
     "noRun": {
       "title": "No multi-agent run yet",
-      "bodyReady": "Run all enabled agents on this PR to see N columns + conflicts.",
-      "bodySelect": "Select a PR to begin.",
-      "cta": "Run all agents"
+      "bodyReady": "Pick the agents to run on this PR to see their columns + conflicts.",
+      "bodySelect": "Select a PR to begin."
+    },
+    "configure": {
+      "title": "Run a Multi-Agent Review",
+      "pickPrFirst": "Pick a pull request first",
+      "agentsToRun": "Agents to run",
+      "selectAll": "Select all",
+      "viewLatest": "View latest results",
+      "run": "Run multi-agent review ({count})"
+    },
+    "results": {
+      "empty": {
+        "title": "No multi-agent review yet",
+        "body": "Configure a run to review this PR with a chosen set of agents.",
+        "cta": "Configure a run"
+      }
+    },
+    "estimate": {
+      "unavailable": "—",
+      "incomplete": "Estimate incomplete — some agents have no prior run."
     },
     "crumb": "Multi-Agent Review"
   }

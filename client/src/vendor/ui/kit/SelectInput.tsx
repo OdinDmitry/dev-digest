@@ -45,7 +45,15 @@ export function SelectInput({
           const v = typeof o === "string" ? o : o.value;
           const l = typeof o === "string" ? o : o.label;
           return (
-            <option key={v} value={v}>
+            // The popup list is painted by the browser, not by our wrapper, so
+            // it does NOT inherit `--bg-elevated` — without an explicit
+            // background each option renders light `--text-primary` on the
+            // browser's own white, i.e. invisible in the dark theme.
+            <option
+              key={v}
+              value={v}
+              style={{ background: "var(--bg-elevated)", color: "var(--text-primary)" }}
+            >
               {l}
             </option>
           );

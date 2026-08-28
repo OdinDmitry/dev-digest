@@ -175,6 +175,8 @@ export async function createAgentRun(
     prId: string;
     provider: string | null;
     model: string | null;
+    /** Group this run belongs to when part of a multi-agent review. */
+    multiAgentRunId?: string | null;
   },
 ): Promise<string> {
   const [row] = await db
@@ -185,6 +187,7 @@ export async function createAgentRun(
       prId: values.prId,
       provider: values.provider,
       model: values.model,
+      multiAgentRunId: values.multiAgentRunId ?? null,
       status: 'running',
       source: 'local',
     })
@@ -229,6 +232,7 @@ export async function completeAgentRun(
       warningCount: values.warningCount ?? null,
       suggestionCount: values.suggestionCount ?? null,
       error: values.error ?? null,
+      finishedAt: new Date(),
     })
     .where(eq(t.agentRuns.id, runId));
 }
@@ -254,4 +258,82 @@ export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | und
   // than a 500 on a run that renders today.
   const parsed = RunTraceSchema.safeParse(row.trace);
   return parsed.success ? parsed.data : (row.trace as RunTrace);
+}
+
+// ---- observability: multi_agent_runs --------------------------------------
+
+/** A `multi_agent_runs` group, mapped to a plain shape at the repository
+ *  boundary — never the raw `$inferSelect` row (see `server/insights.md`,
+ *  onion-architecture's row-type rule). Carries only what callers need. */
+export interface MultiAgentRunGroup {
+  id: string;
+  prId: string;
+  ranAt: Date;
+}
+
+/** Create a multi_agent_runs group row; returns its id. */
+export async function createMultiAgentRun(
+  db: Db,
+  values: { workspaceId: string; prId: string },
+): Promise<string> {
+  const [row] = await db
+    .insert(t.multiAgentRuns)
+    .values({ workspaceId: values.workspaceId, prId: values.prId })
+    .returning({ id: t.multiAgentRuns.id });
+  return row!.id;
+}
+
+/** The most recent multi-agent group for a PR, workspace-scoped. */
+export async function latestMultiAgentRunForPull(
+  db: Db,
+  workspaceId: string,
+  prId: string,
+): Promise<MultiAgentRunGroup | undefined> {
+  const [row] = await db
+    .select()
+    .from(t.multiAgentRuns)
+    .where(and(eq(t.multiAgentRuns.workspaceId, workspaceId), eq(t.multiAgentRuns.prId, prId)))
+    .orderBy(desc(t.multiAgentRuns.ranAt), desc(t.multiAgentRuns.id))
+    .limit(1);
+  return row ? { id: row.id, prId: row.prId, ranAt: row.ranAt } : undefined;
+}
+
+/** Every agent_runs row in a multi-agent group, joined to its agent's name +
+ *  description (for the column header). */
+export async function runsForMultiAgentRun(
+  db: Db,
+  groupId: string,
+): Promise<{ run: typeof t.agentRuns.$inferSelect; agentName: string | null; agentDescription: string | null }[]> {
+  const rows = await db
+    .select({ run: t.agentRuns, agentName: t.agents.name, agentDescription: t.agents.description })
+    .from(t.agentRuns)
+    .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .where(eq(t.agentRuns.multiAgentRunId, groupId));
+  return rows.map(({ run, agentName, agentDescription }) => ({
+    run,
+    agentName: agentName ?? null,
+    agentDescription: agentDescription ?? null,
+  }));
+}
+
+/** Each agent's LAST SUCCESSFUL (status='done') run in the workspace — the
+ *  basis for the "estimated duration/cost" shown before a run starts. One
+ *  grouped query via DISTINCT ON, never a fan-out per agent. */
+export async function lastSuccessfulRunByAgent(
+  db: Db,
+  workspaceId: string,
+): Promise<{ agentId: string; durationMs: number | null; costUsd: number | null }[]> {
+  const rows = await db
+    .selectDistinctOn([t.agentRuns.agentId], {
+      agentId: t.agentRuns.agentId,
+      durationMs: t.agentRuns.durationMs,
+      costUsd: t.agentRuns.costUsd,
+    })
+    .from(t.agentRuns)
+    .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.status, 'done')))
+    .orderBy(t.agentRuns.agentId, desc(t.agentRuns.ranAt), desc(t.agentRuns.id));
+
+  return rows
+    .filter((r): r is typeof r & { agentId: string } => r.agentId !== null)
+    .map((r) => ({ agentId: r.agentId, durationMs: r.durationMs, costUsd: r.costUsd }));
 }

@@ -1,0 +1,14 @@
+{
+  "name": "PR detail's Run Review control opens the multi-select agent picker",
+  "description": "Opens the seeded PR #482 (same navigation as e2e/specs/04-pr-findings.flow.json steps 5-10), clicks the 'Run Review' trigger, and confirms 'Run multi-agent review' renders — copy that exists only inside RunReviewDropdown's popover (client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/RunReviewDropdown.tsx, runReview.runMultiAgent), proving the trigger opens the NEW multi-select picker rather than the old single-choice menu. NOT asserting on the popover heading (runReview.pickAgents, 'Pick agents to run'): styles.ts gives headerTitle `textTransform: uppercase` per design ref 01, and the browser matches visible text via innerText, which applies the transform — so the heading reads 'PICK AGENTS TO RUN' here and matched in jsdom (textContent) but not in a real browser. The run control itself is never clicked, so no model call is made (e2e/CLAUDE.md: flows target read-only seeded data only).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Run Review"], "label": "click the Run Review trigger" },
+    { "cmd": ["wait", "--text", "Run multi-agent review"], "label": "the multi-select agent picker's own copy renders" }
+  ]
+}

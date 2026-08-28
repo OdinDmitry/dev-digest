@@ -1,6 +1,80 @@
 import type { CSSProperties } from "react";
 
-/** Co-located styles for RunReviewDropdown. This component renders only library
-   primitives (Button/Dropdown) and has no inline styles; the map is kept for
-   convention parity and future use. */
-export const s = {} satisfies Record<string, CSSProperties>;
+/** Co-located styles for RunReviewDropdown's agent-picker popover. */
+export const s = {
+  container: { position: "relative", display: "inline-block" },
+  popover: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    right: 0,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border-strong)",
+    borderRadius: 9,
+    boxShadow: "var(--shadow-modal)",
+    padding: 10,
+    zIndex: 40,
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  headerTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
+  },
+  linkButton: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontSize: 12,
+    color: "var(--accent)",
+    cursor: "pointer",
+    minHeight: 24,
+    minWidth: 24,
+  },
+  mergedWarning: {
+    fontSize: 12,
+    color: "var(--warn)",
+    marginBottom: 8,
+  },
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    maxHeight: 260,
+    overflowY: "auto",
+    marginBottom: 8,
+  },
+  row: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    padding: "4px 2px",
+  },
+  estimate: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
+  emptyState: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+    padding: "8px 2px",
+    marginBottom: 8,
+  },
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingTop: 8,
+    borderTop: "1px solid var(--border)",
+  },
+} satisfies Record<string, CSSProperties>;

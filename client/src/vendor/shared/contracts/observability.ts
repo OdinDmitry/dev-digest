@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Severity } from './findings.js';
+import { FindingRecord } from './review-api.js';
 
 /**
  * A5 — Observability / Multi-agent contracts (L07).
@@ -19,23 +20,12 @@ import { Severity } from './findings.js';
 // Multi-Agent Review
 // ---------------------------------------------------------------------------
 
-/** A finding as surfaced in a multi-agent column (subset of FindingRecord). */
-export const AgentColumnFinding = z.object({
-  id: z.string(),
-  severity: Severity,
-  category: z.string(),
-  title: z.string(),
-  file: z.string(),
-  start_line: z.number().int(),
-  kind: z.string().nullish(),
-});
-export type AgentColumnFinding = z.infer<typeof AgentColumnFinding>;
-
 /** One agent's result column in the multi-agent review. */
 export const AgentColumn = z.object({
   run_id: z.string(),
   agent_id: z.string(),
   agent_name: z.string(),
+  agent_description: z.string().nullable(),
   provider: z.string().nullable(),
   model: z.string().nullable(),
   status: z.enum(['done', 'failed', 'running']),
@@ -44,29 +34,34 @@ export const AgentColumn = z.object({
   summary: z.string().nullable(),
   duration_ms: z.number().int().nullable(),
   cost_usd: z.number().nullable(),
-  findings: z.array(AgentColumnFinding),
+  error: z.string().nullable(),
+  findings: z.array(FindingRecord),
 });
 export type AgentColumn = z.infer<typeof AgentColumn>;
 
-/** One agent's stance on a contended file:line. */
+/** One agent's stance on a contended file:line range. */
 export const ConflictTake = z.object({
   agent_id: z.string(),
-  persona: z.string(),
+  agent_name: z.string().nullable(),
   /** Severity if the agent flagged it, or 'ignored' when it did not. */
   verdict: z.union([Severity, z.literal('ignored')]),
-  note: z.string(),
+  /** The agent's own finding title, verbatim; null when verdict === 'ignored'. */
+  note: z.string().nullable(),
 });
 export type ConflictTake = z.infer<typeof ConflictTake>;
 
 /**
- * A conflict = a file:line that at least one agent flagged and at least one
- * other agent (that also reviewed) did NOT, OR where agents assigned divergent
- * severities. Computed from persisted findings; not stored.
+ * A conflict = a file:line-range that at least one participating agent
+ * flagged and at least one other participating agent did NOT, OR where
+ * participants assigned divergent severities. Computed from persisted
+ * findings; not stored. A row has no synthesized title — it is identified by
+ * its location alone.
  */
 export const Conflict = z.object({
   file: z.string(),
-  line: z.number().int(),
-  title: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  is_conflict: z.boolean(),
   takes: z.array(ConflictTake),
 });
 export type Conflict = z.infer<typeof Conflict>;
@@ -78,12 +73,27 @@ export const MultiAgentRun = z.object({
   pr_number: z.number().int().nullish(),
   ran_at: z.string(),
   agent_count: z.number().int(),
+  /** Group wall-clock, not a sum of run durations. */
   total_duration_ms: z.number().int(),
   total_cost_usd: z.number().nullable(),
   columns: z.array(AgentColumn),
   conflicts: z.array(Conflict),
 });
 export type MultiAgentRun = z.infer<typeof MultiAgentRun>;
+
+/** Request body of POST /pulls/:id/multi-agent-run. */
+export const MultiAgentRunRequest = z.object({
+  agent_ids: z.array(z.string().uuid()).min(1),
+});
+export type MultiAgentRunRequest = z.infer<typeof MultiAgentRunRequest>;
+
+/** One entry of GET /agents/estimates — the agent's last successful run. */
+export const AgentEstimate = z.object({
+  agent_id: z.string(),
+  duration_ms: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
+});
+export type AgentEstimate = z.infer<typeof AgentEstimate>;
 
 // ---------------------------------------------------------------------------
 // Per-agent Stats (GET /agents/:id/stats)
