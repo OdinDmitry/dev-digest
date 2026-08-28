@@ -18,3 +18,4 @@ export type PullRow = typeof t.pullRequests.$inferSelect;
 export type AgentRunRow = typeof t.agentRuns.$inferSelect;
 export type ConventionRow = typeof t.conventions.$inferSelect;
 export type CiInstallationRow = typeof t.ciInstallations.$inferSelect;
+export type CiRunRow = typeof t.ciRuns.$inferSelect;

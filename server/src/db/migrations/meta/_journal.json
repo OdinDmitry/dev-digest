@@ -148,6 +148,13 @@
       "when": 1787928765008,
       "tag": "0020_fresh_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787947489415,
+      "tag": "0021_steep_molten_man",
+      "breakpoints": true
     }
   ]
 }

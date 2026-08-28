@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { agents } from './agents';
 import { workspaces } from './core';
+import { agentRuns } from './runs';
 
 export const ciInstallations = pgTable(
   'ci_installations',
@@ -41,16 +42,44 @@ export const ciInstallations = pgTable(
   }),
 );
 
-export const ciRuns = pgTable('ci_runs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  ciInstallationId: uuid('ci_installation_id').references(() => ciInstallations.id, {
-    onDelete: 'set null',
+export const ciRuns = pgTable(
+  'ci_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    ciInstallationId: uuid('ci_installation_id').references(() => ciInstallations.id, {
+      onDelete: 'set null',
+    }),
+    agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
+    agentRunId: uuid('agent_run_id').references(() => agentRuns.id, { onDelete: 'set null' }),
+    /** The platform's own run id, as a string (`CiWorkflowRunRef.id`). */
+    providerRunId: text('provider_run_id').notNull(),
+    prNumber: integer('pr_number'),
+    headSha: text('head_sha'),
+    ranAt: timestamp('ran_at', { withTimezone: true }),
+    status: text('status').notNull().default('in_progress'),
+    verdict: text('verdict'),
+    unavailableReason: text('unavailable_reason'),
+    findingsCount: integer('findings_count'),
+    criticalCount: integer('critical_count'),
+    warningCount: integer('warning_count'),
+    suggestionCount: integer('suggestion_count'),
+    costUsd: doublePrecision('cost_usd'),
+    durationMs: integer('duration_ms'),
+    githubUrl: text('github_url').notNull(),
+    source: text('source'),
+    manifestVersion: integer('manifest_version'),
+    model: text('model'),
+    runnerBuild: text('runner_build'),
+  },
+  (t) => ({
+    installationProviderUq: uniqueIndex('ci_runs_installation_provider_uq').on(
+      t.ciInstallationId,
+      t.providerRunId,
+    ),
+    workspaceRanIdx: index('ci_runs_workspace_ran_idx').on(t.workspaceId, t.ranAt),
+    agentIdx: index('ci_runs_agent_idx').on(t.agentId),
   }),
-  prNumber: integer('pr_number'),
-  ranAt: timestamp('ran_at', { withTimezone: true }),
-  status: text('status'),
-  findingsCount: integer('findings_count'),
-  costUsd: doublePrecision('cost_usd'),
-  githubUrl: text('github_url'),
-  source: text('source'),
-});
+);

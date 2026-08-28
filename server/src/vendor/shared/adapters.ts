@@ -164,6 +164,33 @@ export interface GitHubClient {
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
+  /** The `limit` most recent runs of `workflowFile`, newest first. `[]` when
+   *  the workflow is unknown to the repository. */
+  listWorkflowRuns(repo: RepoRef, workflowFile: string, limit: number): Promise<CiWorkflowRunRef[]>;
+  /** The text of `entryName` inside the run's `artifactName` attachment, or
+   *  `null` when the run has no such attachment or it holds no such entry. */
+  downloadRunArtifactEntry(
+    repo: RepoRef,
+    runId: string,
+    artifactName: string,
+    entryName: string,
+  ): Promise<string | null>;
+}
+
+/** One run of a workflow, as the code-hosting platform reports it. */
+export interface CiWorkflowRunRef {
+  /** The platform's own run id, as a string. */
+  id: string;
+  runNumber: number;
+  /** The commit the run reviewed, as the platform records it. */
+  headSha: string;
+  finished: boolean;
+  conclusion: string | null;
+  /** Where a human reads the job. */
+  htmlUrl: string;
+  createdAt: string;
+  /** Pull requests the platform associates with the run; may be empty. */
+  prNumbers: number[];
 }
 
 // ---------- Git (simple-git, heavy) ----------

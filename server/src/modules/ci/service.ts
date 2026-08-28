@@ -5,7 +5,11 @@ import type {
   CiInstallation,
   CiWorkflowValidation,
   CiFile,
+  CiRun,
+  CiRefreshResult,
+  CiRefreshRejection,
   GitHubClient,
+  RepoRef,
 } from '@devdigest/shared';
 import { WORKFLOW_VERSION } from '@devdigest/shared';
 import type { AppConfig } from '../../platform/config.js';
@@ -14,7 +18,17 @@ import { AgentsRepository, type AgentRow } from '../agents/repository.js';
 import type { RepoRepository, RepoRow } from '../repos/repository.js';
 import type { SkillsRepository } from '../skills/repository.js';
 import { CiRepository } from './repository.js';
-import { CI_BRANCH, CI_PR_TITLE, WORKFLOW_PATH, RUNNER_PATH, SKILLS_DIR } from './constants.js';
+import {
+  CI_BRANCH,
+  CI_PR_TITLE,
+  WORKFLOW_PATH,
+  RUNNER_PATH,
+  SKILLS_DIR,
+  WORKFLOW_FILE,
+  RESULT_ARTIFACT_NAME,
+  RESULT_FILE,
+  REFRESH_RUN_LIMIT,
+} from './constants.js';
 import { buildManifest, serializeManifest, manifestPath } from './manifest.js';
 import {
   buildWorkflow,
@@ -24,6 +38,7 @@ import {
 } from './workflow.js';
 import { readRunnerBundle } from './bundle.js';
 import { uniqueSlugs, installationToDto } from './helpers.js';
+import { verifyResult, type WorkflowRunFacts } from './ingest.js';
 
 const AGENT_NOT_FOUND_MESSAGE = 'Agent not found';
 const REPO_NOT_FOUND_MESSAGE = 'Repository not found';
@@ -157,6 +172,185 @@ export class CiService {
     return rows.map((row) => installationToDto(row, agent.name, WORKFLOW_VERSION));
   }
 
+  async listRuns(workspaceId: string): Promise<CiRun[]> {
+    return this.deps.repo.listRunsForWorkspace(workspaceId);
+  }
+
+  async listRunsForAgent(workspaceId: string, agentId: string): Promise<CiRun[]> {
+    await this.requireAgent(workspaceId, agentId);
+    return this.deps.repo.listRunsForAgent(workspaceId, agentId);
+  }
+
+  /**
+   * AC-14, AC-15, AC-16, AC-23, AC-24 — pull the latest workflow runs for
+   * every CI installation in the workspace and ingest what has finished.
+   * Per installation, newest run first:
+   *   1. List the workflow's runs.
+   *   2. Skip runs already stored in a TERMINAL status (recorded/unavailable)
+   *      — BEFORE fetching anything.
+   *   3. An unfinished run → an `in_progress` row, no counts.
+   *   4. Otherwise download the result artifact. `null` → an `unavailable`
+   *      row (never a zero-findings row).
+   *   5. `verifyResult` rejects → nothing is recorded; the rejection goes on
+   *      the response instead (AC-15).
+   *   6. Ok → an `agent_runs` row (`source: 'ci'`, `pr_id: null`, AC-24),
+   *      then the `ci_runs` row in `recorded` status.
+   */
+  async refresh(workspaceId: string): Promise<CiRefreshResult> {
+    const installations = await this.deps.repo.listInstallationsForWorkspace(workspaceId);
+    const github = await this.deps.github();
+
+    let recorded = 0;
+    let skippedExisting = 0;
+    const rejected: CiRefreshRejection[] = [];
+
+    for (const installation of installations) {
+      const repoRef = repoRefOf(installation.repo);
+
+      // 1.
+      const workflowRuns = await github.listWorkflowRuns(
+        repoRef,
+        WORKFLOW_FILE,
+        REFRESH_RUN_LIMIT,
+      );
+
+      // 2. Skip terminal runs before fetching anything.
+      const terminal = await this.deps.repo.terminalProviderRunIds(
+        installation.id,
+        workflowRuns.map((run) => run.id),
+      );
+
+      for (const run of workflowRuns) {
+        if (terminal.has(run.id)) {
+          skippedExisting++;
+          continue;
+        }
+
+        // 3.
+        if (!run.finished) {
+          await this.deps.repo.upsertRun({
+            workspaceId,
+            ciInstallationId: installation.id,
+            agentId: installation.agentId,
+            agentRunId: null,
+            providerRunId: run.id,
+            prNumber: run.prNumbers[0] ?? null,
+            headSha: run.headSha,
+            ranAt: new Date(run.createdAt),
+            status: 'in_progress',
+            verdict: null,
+            unavailableReason: null,
+            findingsCount: null,
+            criticalCount: null,
+            warningCount: null,
+            suggestionCount: null,
+            costUsd: null,
+            durationMs: null,
+            githubUrl: run.htmlUrl,
+            manifestVersion: null,
+            model: null,
+            runnerBuild: null,
+          });
+          continue;
+        }
+
+        // 4.
+        const text = await github.downloadRunArtifactEntry(
+          repoRef,
+          run.id,
+          RESULT_ARTIFACT_NAME,
+          RESULT_FILE,
+        );
+        if (text === null) {
+          await this.deps.repo.upsertRun({
+            workspaceId,
+            ciInstallationId: installation.id,
+            agentId: installation.agentId,
+            agentRunId: null,
+            providerRunId: run.id,
+            prNumber: run.prNumbers[0] ?? null,
+            headSha: run.headSha,
+            ranAt: new Date(run.createdAt),
+            status: 'unavailable',
+            verdict: null,
+            unavailableReason: 'no readable result artifact for this run',
+            findingsCount: null,
+            criticalCount: null,
+            warningCount: null,
+            suggestionCount: null,
+            costUsd: null,
+            durationMs: null,
+            githubUrl: run.htmlUrl,
+            manifestVersion: null,
+            model: null,
+            runnerBuild: null,
+          });
+          continue;
+        }
+
+        // 5.
+        const facts: WorkflowRunFacts = {
+          repo: installation.repo,
+          headSha: run.headSha,
+          prNumbers: run.prNumbers,
+          jobUrl: run.htmlUrl,
+        };
+        const verified = verifyResult(text, facts);
+        if (!verified.ok) {
+          rejected.push({ job_url: run.htmlUrl, reason: verified.reason });
+          continue;
+        }
+
+        // 6.
+        const artifact = verified.artifact;
+        const agentRunId = await this.deps.repo.insertCiAgentRun({
+          workspaceId,
+          agentId: installation.agentId,
+          provider: null,
+          model: artifact.model,
+          durationMs: artifact.duration_ms ?? 0,
+          costUsd: artifact.cost_usd,
+          findingsCount: artifact.findings_count,
+          blockers: artifact.critical,
+          warningCount: artifact.warning,
+          suggestionCount: artifact.suggestion,
+        });
+        await this.deps.repo.upsertRun({
+          workspaceId,
+          ciInstallationId: installation.id,
+          agentId: installation.agentId,
+          agentRunId,
+          providerRunId: run.id,
+          prNumber: artifact.pr_number,
+          headSha: artifact.head_sha,
+          ranAt: new Date(run.createdAt),
+          status: 'recorded',
+          verdict: artifact.verdict,
+          unavailableReason: null,
+          findingsCount: artifact.findings_count,
+          criticalCount: artifact.critical,
+          warningCount: artifact.warning,
+          suggestionCount: artifact.suggestion,
+          costUsd: artifact.cost_usd,
+          durationMs: artifact.duration_ms,
+          githubUrl: run.htmlUrl,
+          manifestVersion: artifact.manifest_version,
+          model: artifact.model,
+          runnerBuild: artifact.runner_build,
+        });
+        recorded++;
+      }
+    }
+
+    return {
+      runs: await this.deps.repo.listRunsForWorkspace(workspaceId),
+      recorded,
+      skipped_existing: skippedExisting,
+      rejected,
+      installations_checked: installations.length,
+    };
+  }
+
   // ---- internals -----------------------------------------------------
 
   private async requireAgent(workspaceId: string, agentId: string): Promise<AgentRow> {
@@ -217,4 +411,10 @@ export class CiService {
 
     return { files, workflowContents, skillCount: linked.length };
   }
+}
+
+/** Split a stored `"owner/name"` full name into a `RepoRef`. */
+function repoRefOf(fullName: string): RepoRef {
+  const [owner, name] = fullName.split('/', 2) as [string, string];
+  return { owner, name };
 }

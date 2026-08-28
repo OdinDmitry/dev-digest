@@ -33,6 +33,7 @@ import type {
   SecretKey,
   WebFetchClient,
   FetchTextResult,
+  CiWorkflowRunRef,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
 
@@ -127,6 +128,11 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** Fixture for `listWorkflowRuns` — every call returns this list verbatim. */
+  workflowRuns?: CiWorkflowRunRef[];
+  /** Fixture for `downloadRunArtifactEntry`, keyed by run id. `undefined` for
+   *  a run id not present in this map behaves like `null` (no artifact/entry). */
+  artifactEntries?: Record<string, string | null>;
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -134,6 +140,9 @@ export class MockGitHubClient implements GitHubClient {
   public openedPrs: OpenPrPayload[] = [];
   public committed: CommitFilesPayload[] = [];
   public createdComments: CreateReviewCommentInput[] = [];
+  /** Every run id `downloadRunArtifactEntry` was called for, in call order —
+   *  lets a test prove a skipped (terminal) run's artifact was never fetched. */
+  public downloadCalls: string[] = [];
 
   constructor(private opts: MockGitHubOptions = {}) {}
 
@@ -238,6 +247,24 @@ export class MockGitHubClient implements GitHubClient {
 
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
+  }
+
+  async listWorkflowRuns(
+    _repo: RepoRef,
+    _workflowFile: string,
+    _limit: number,
+  ): Promise<CiWorkflowRunRef[]> {
+    return this.opts.workflowRuns ?? [];
+  }
+
+  async downloadRunArtifactEntry(
+    _repo: RepoRef,
+    runId: string,
+    _artifactName: string,
+    _entryName: string,
+  ): Promise<string | null> {
+    this.downloadCalls.push(runId);
+    return this.opts.artifactEntries?.[runId] ?? null;
   }
 }
 

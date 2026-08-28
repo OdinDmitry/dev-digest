@@ -30,6 +30,10 @@ export interface PrContext {
   /** True when the PR head is a fork — informational only; the workflow
    *  itself is responsible for never scheduling this job for fork PRs. */
   isFork: boolean;
+  /** `pull_request.head.sha` — the commit under review. Defaults to `''`
+   *  when the event payload carries none (e.g. an unresolvable/absent
+   *  event). */
+  headSha: string;
 }
 
 interface PullRequestEventPayload {
@@ -37,7 +41,7 @@ interface PullRequestEventPayload {
     number?: number;
     title?: string;
     body?: string | null;
-    head?: { repo?: { fork?: boolean } | null };
+    head?: { sha?: string; repo?: { fork?: boolean } | null };
   };
 }
 
@@ -90,5 +94,6 @@ export function resolvePrContext(
     title: pr?.title ?? '',
     body: pr?.body ?? '',
     isFork: pr?.head?.repo?.fork ?? false,
+    headSha: pr?.head?.sha ?? '',
   };
 }

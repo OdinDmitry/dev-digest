@@ -1,8 +1,8 @@
-import type { Finding } from '@devdigest/shared';
+import type { Finding, CiVerdict } from '@devdigest/shared';
 import { CiResultArtifact } from '@devdigest/shared';
 import { RunnerError } from './errors.js';
 
-/** Runner version string embedded in every artifact (informational only). */
+/** Runner build string embedded in every artifact (informational only). */
 export const RUNNER_VERSION = '1';
 
 export interface BuildResultArtifactInput {
@@ -11,6 +11,17 @@ export interface BuildResultArtifactInput {
   durationMs: number;
   agent: string;
   prNumber: number;
+  /** "owner/name" of the repository the run belongs to. */
+  repo: string;
+  /** `pull_request.head.sha`. */
+  headSha: string;
+  /** `process.env.GITHUB_SHA`. */
+  workflowSha: string;
+  manifestVersion: number;
+  model: string;
+  verdict: CiVerdict;
+  /** Non-null only when `verdict === 'skipped'`. */
+  skipReason: string | null;
 }
 
 function severityCounts(findings: Finding[]): { critical: number; warning: number; suggestion: number } {
@@ -32,15 +43,22 @@ function severityCounts(findings: Finding[]): { critical: number; warning: numbe
 export function buildResultArtifact(input: BuildResultArtifactInput): CiResultArtifact {
   const counts = severityCounts(input.findings);
   const candidate = {
+    repo: input.repo,
+    head_sha: input.headSha,
+    workflow_sha: input.workflowSha,
+    pr_number: input.prNumber,
+    agent: input.agent,
+    manifest_version: input.manifestVersion,
+    model: input.model,
+    runner_build: RUNNER_VERSION,
+    verdict: input.verdict,
+    skip_reason: input.skipReason,
     findings_count: input.findings.length,
     critical: counts.critical,
     warning: counts.warning,
     suggestion: counts.suggestion,
     cost_usd: input.costUsd,
     duration_ms: input.durationMs,
-    agent: input.agent,
-    version: RUNNER_VERSION,
-    pr_number: input.prNumber,
   };
   const result = CiResultArtifact.safeParse(candidate);
   if (!result.success) {

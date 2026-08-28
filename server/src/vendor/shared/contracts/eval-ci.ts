@@ -317,41 +317,80 @@ export const CiWorkflowValidation = z.object({
 });
 export type CiWorkflowValidation = z.infer<typeof CiWorkflowValidation>;
 
-export const CiRunStatus = z.enum(['succeeded', 'failed', 'no_findings', 'running']);
+// The observable states of a run the studio holds. `rejected` is NOT a
+// member: a rejected result records nothing (AC-15) and is reported on the
+// refresh response instead.
+export const CiRunStatus = z.enum(['in_progress', 'recorded', 'unavailable']);
 export type CiRunStatus = z.infer<typeof CiRunStatus>;
 
 /** A CI run row (mirrors `ci_runs`) — ingested from GitHub Actions artifacts. */
 export const CiRun = z.object({
   id: z.string(),
   ci_installation_id: z.string().nullable(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  repo: z.string(),
   pr_number: z.number().int().nullable(),
-  ran_at: z.string().nullable(),
-  status: z.string().nullable(),
+  head_sha: z.string().nullable(),
+  status: CiRunStatus,
+  verdict: CiVerdict.nullable(),
+  unavailable_reason: z.string().nullable(),
   findings_count: z.number().int().nullable(),
+  critical: z.number().int().nullable(),
+  warning: z.number().int().nullable(),
+  suggestion: z.number().int().nullable(),
   cost_usd: z.number().nullable(),
-  github_url: z.string().nullable(),
-  source: z.string().nullable(),
-  agent: z.string().nullish(),
-  duration_s: z.number().nullish(),
+  duration_ms: z.number().int().nullable(),
+  ran_at: z.string().nullable(),
+  job_url: z.string(), // AC-16 "the location of the job"
+  model: z.string().nullable(),
+  manifest_version: z.number().int().nullable(),
+  runner_build: z.string().nullable(),
 });
 export type CiRun = z.infer<typeof CiRun>;
 
 /**
  * The artifact shape uploaded by the CI action (`devdigest-result.json`).
- * Ingested back on refresh to populate `ci_runs` (L06).
+ * Ingested back on refresh to populate `ci_runs` (L06). Carries no secret,
+ * no finding text (AC-13).
  */
 export const CiResultArtifact = z.object({
+  schema_version: z.number().int().positive().default(1),
+  repo: z.string().min(1), // "owner/name"                (AC-15)
+  head_sha: z.string().min(1), // pull_request.head.sha       (AC-15, US-8)
+  workflow_sha: z.string().min(1), // process.env.GITHUB_SHA      (see Open questions)
+  pr_number: z.number().int().positive(), // (AC-15)
+  agent: z.string().min(1),
+  manifest_version: z.number().int().positive(), // (US-8)
+  model: z.string().min(1), // (US-8)
+  runner_build: z.string().min(1), // replaces `version`         (US-8)
+  verdict: CiVerdict, // (AC-16, AC-23)
+  /** Non-null only when `verdict === 'skipped'` — AC-12's stated reason. */
+  skip_reason: z.string().nullable(),
   findings_count: z.number().int(),
-  critical: z.number().int().nullish(),
-  warning: z.number().int().nullish(),
-  suggestion: z.number().int().nullish(),
+  critical: z.number().int(),
+  warning: z.number().int(),
+  suggestion: z.number().int(),
   cost_usd: z.number().nullable(),
-  duration_ms: z.number().int().nullish(),
-  agent: z.string(),
-  version: z.string().nullish(),
-  pr_number: z.number().int().nullish(),
+  duration_ms: z.number().int().nullable(),
 });
 export type CiResultArtifact = z.infer<typeof CiResultArtifact>;
+
+export const CiRefreshRejection = z.object({
+  job_url: z.string(),
+  reason: z.string(),
+});
+export type CiRefreshRejection = z.infer<typeof CiRefreshRejection>;
+
+/** Response of `POST /ci/refresh`. */
+export const CiRefreshResult = z.object({
+  runs: z.array(CiRun),
+  recorded: z.number().int(),
+  skipped_existing: z.number().int(),
+  rejected: z.array(CiRefreshRejection),
+  installations_checked: z.number().int(),
+});
+export type CiRefreshResult = z.infer<typeof CiRefreshResult>;
 
 // ===========================================================================
 // Conformance (PRD ↔ PR) — API record (the analysis shape is `Conformance`)

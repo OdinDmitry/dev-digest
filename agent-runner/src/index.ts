@@ -7,10 +7,12 @@
  * `dist/index.js` (T7) with no runtime dependency on `node_modules/@devdigest/*`.
  *
  * Reads CI-injected env vars directly (OPENROUTER_API_KEY, GITHUB_TOKEN,
- * GITHUB_REPOSITORY, PR_NUMBER). This is intentional, not a `SecretsProvider`
- * bypass: the runner executes OUTSIDE the server DI graph (in the target
- * repo's own CI), so the `SecretsProvider`/`process.env` chokepoint — which is
- * scoped to `server/` — does not apply here (see `agent-runner/CLAUDE.md`).
+ * GITHUB_REPOSITORY, PR_NUMBER, GITHUB_SHA — the last a default GitHub
+ * Actions runtime var, always present, used as the artifact's
+ * `workflow_sha`). This is intentional, not a `SecretsProvider` bypass: the
+ * runner executes OUTSIDE the server DI graph (in the target repo's own CI),
+ * so the `SecretsProvider`/`process.env` chokepoint — which is scoped to
+ * `server/` — does not apply here (see `agent-runner/CLAUDE.md`).
  *
  * All actual logic lives in `run.ts` (`runCi`), which takes every dependency
  * (fs, fetch, LLM provider, clock) as an injectable parameter so it can be
@@ -40,6 +42,9 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<number
 
   const result = await runCi({
     devdigestDir,
+    // `env` (the full process.env) already carries GITHUB_SHA ?? '' through
+    // to `runCi` unchanged — `run.ts` reads it off `deps.env` the same way
+    // it already reads GITHUB_TOKEN, so no separate parameter is needed here.
     env,
     llm,
     postAs,

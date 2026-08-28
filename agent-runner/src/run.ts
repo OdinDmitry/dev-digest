@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import type { LLMProvider, GitHubReviewPayload, CiResultArtifact } from '@devdigest/shared';
+import type { LLMProvider, GitHubReviewPayload, CiResultArtifact, CiVerdict } from '@devdigest/shared';
 import { reviewPullRequest, toReviewPayload, gateTriggered, countBlockers } from '@devdigest/reviewer-core';
 import { loadManifest } from './manifest.js';
 import { loadSkillBodies } from './skills.js';
@@ -33,6 +33,21 @@ import { RunnerError } from './errors.js';
  */
 
 export type PostAs = 'github_review' | 'pr_comment' | 'none';
+
+/** payload.event → CiVerdict. Deterministic; never the model's self-report.
+ *  Mirrors `server/src/modules/ci/ingest.ts`'s `verdictFromEvent` — duplicated
+ *  rather than imported so this package stays self-contained for `ncc`
+ *  bundling (no runtime dependency on the server's own modules). */
+function verdictFromEvent(event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'): CiVerdict {
+  switch (event) {
+    case 'APPROVE':
+      return 'approved';
+    case 'REQUEST_CHANGES':
+      return 'changes_requested';
+    case 'COMMENT':
+      return 'commented';
+  }
+}
 
 export interface RunCiDeps {
   /** Directory containing `agents/` and `skills/` (checked-in `.devdigest/`). */
@@ -95,10 +110,46 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
 
     // 2. Resolve CI context (PR number/title/body/repo) from env + event payload.
     const ctx = resolvePrContext(deps.env, readFile);
+    const workflowSha = deps.env.GITHUB_SHA ?? '';
+
+    // Fork short-circuit (AC-12) — BEFORE the GITHUB_TOKEN check below: a
+    // fork PR is never reviewed at all (no diff fetched, no model called,
+    // nothing posted), so it must not hard-fail just because no token was
+    // configured to post with. `posted: { kind: 'none' }` and `artifact` is
+    // non-null (a valid, terminal "skipped" result), not `error` — the
+    // discriminated union narrows on `artifact === null`, not on `error`.
+    if (ctx.isFork) {
+      const artifact = buildResultArtifact({
+        findings: [],
+        costUsd: null,
+        durationMs: 0,
+        agent: manifest.name,
+        prNumber: ctx.prNumber,
+        repo: `${ctx.owner}/${ctx.repo}`,
+        headSha: ctx.headSha,
+        workflowSha,
+        manifestVersion: manifest.manifest_version,
+        model: manifest.model,
+        verdict: 'skipped',
+        skipReason: 'pull requests from forks are not reviewed',
+      });
+      writeFile(deps.resultPath, `${JSON.stringify(artifact, null, 2)}\n`);
+      return {
+        exitCode: 0,
+        artifact,
+        posted: { kind: 'none' },
+        blockers: 0,
+        gateTriggered: false,
+      };
+    }
+
+    // Manifest wins over the CLI-layer default; `DEVDIGEST_POST_AS` remains
+    // the fallback when the manifest doesn't say (AC-11).
+    const postAs = manifest.post_as ?? deps.postAs;
 
     const githubToken = deps.env.GITHUB_TOKEN;
-    if (deps.postAs !== 'none' && !githubToken) {
-      throw new RunnerError(`GITHUB_TOKEN is required to post as '${deps.postAs}'`);
+    if (postAs !== 'none' && !githubToken) {
+      throw new RunnerError(`GITHUB_TOKEN is required to post as '${postAs}'`);
     }
 
     // 3. Assemble the diff from the CI context. Strip DevDigest's own exported
@@ -145,13 +196,20 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
       durationMs,
       agent: manifest.name,
       prNumber: ctx.prNumber,
+      repo: `${ctx.owner}/${ctx.repo}`,
+      headSha: ctx.headSha,
+      workflowSha,
+      manifestVersion: manifest.manifest_version,
+      model: manifest.model,
+      verdict: verdictFromEvent(payload.event),
+      skipReason: null,
     });
     writeFile(deps.resultPath, `${JSON.stringify(artifact, null, 2)}\n`);
 
-    // 7. Post per `post_as` (AC-24).
-    if (deps.postAs === 'github_review') {
+    // 7. Post per the resolved publication mode (AC-11, AC-24).
+    if (postAs === 'github_review') {
       await postGithubReview(ctx, githubToken as string, payload, fetchImpl);
-    } else if (deps.postAs === 'pr_comment') {
+    } else if (postAs === 'pr_comment') {
       await postPrComment(ctx, githubToken as string, payload.body, fetchImpl);
     }
     // 'none' → post nothing (exit-code only).
@@ -160,7 +218,7 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
     return {
       exitCode: triggered ? 1 : 0,
       artifact,
-      posted: { kind: deps.postAs, payload },
+      posted: { kind: postAs, payload },
       blockers,
       gateTriggered: triggered,
     };

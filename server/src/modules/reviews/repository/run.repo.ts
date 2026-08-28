@@ -15,10 +15,13 @@ export interface AgentRunStatsRow {
  * Run count + mean cost per agent across the whole workspace — ONE grouped
  * query, so the agents list never fans out into a request per card.
  *
- * `runCount` counts every run (that is what "N runs" means on the card), while
- * Postgres' `avg()` ignores NULL costs on its own: an agent whose runs all
- * failed comes back as `runCount > 0, avgCostUsd: null`, which the UI renders as
- * "—" rather than a misleading $0.00.
+ * `runCount` counts every LOCAL run (`source = 'local'`) — CI-originated runs
+ * (`source = 'ci'`, written by `CiService.refresh`) are excluded, so "N runs"
+ * on the agent card keeps meaning "runs the user started here", not runs a
+ * separate CI export triggered. Postgres' `avg()` ignores NULL costs on its
+ * own: an agent whose runs all failed comes back as `runCount > 0,
+ * avgCostUsd: null`, which the UI renders as "—" rather than a misleading
+ * $0.00.
  */
 export async function runStatsByAgent(
   db: Db,
@@ -33,7 +36,13 @@ export async function runStatsByAgent(
       avgCostUsd: sql<number | null>`avg(${t.agentRuns.costUsd})::double precision`,
     })
     .from(t.agentRuns)
-    .where(and(eq(t.agentRuns.workspaceId, workspaceId), sql`${t.agentRuns.agentId} is not null`))
+    .where(
+      and(
+        eq(t.agentRuns.workspaceId, workspaceId),
+        sql`${t.agentRuns.agentId} is not null`,
+        eq(t.agentRuns.source, 'local'),
+      ),
+    )
     .groupBy(t.agentRuns.agentId);
 
   return rows

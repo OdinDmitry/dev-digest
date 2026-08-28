@@ -21,3 +21,9 @@ export const ACTION_UPLOAD_ARTIFACT =
   'actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882'; // v4.4.3
 export const SECRET_MODEL_KEY = 'OPENROUTER_API_KEY';
 export const SECRET_GITHUB_TOKEN = 'GITHUB_TOKEN';
+
+/** Per installation, per refresh. Fixed and small: no paging, no cursor. */
+export const REFRESH_RUN_LIMIT = 20;
+/** Hard caps on the attacker-influenceable archive. */
+export const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
+export const MAX_RESULT_BYTES = 256 * 1024;

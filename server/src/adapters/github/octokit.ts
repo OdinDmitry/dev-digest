@@ -1,4 +1,5 @@
 import { Octokit } from 'octokit';
+import { unzipSync } from 'fflate';
 import type {
   GitHubClient,
   RepoRef,
@@ -11,8 +12,10 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  CiWorkflowRunRef,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
+import { MAX_ARTIFACT_BYTES, MAX_RESULT_BYTES } from '../../modules/ci/constants.js';
 
 const TIMEOUT = 30_000;
 
@@ -368,5 +371,93 @@ export class OctokitGitHubClient implements GitHubClient {
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
     );
     return res.data.login;
+  }
+
+  async listWorkflowRuns(
+    repo: RepoRef,
+    workflowFile: string,
+    limit: number,
+  ): Promise<CiWorkflowRunRef[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          try {
+            const res = await this.octokit.rest.actions.listWorkflowRuns({
+              owner: repo.owner,
+              repo: repo.name,
+              workflow_id: workflowFile,
+              per_page: limit,
+            });
+            return res.data.workflow_runs.map(
+              (run): CiWorkflowRunRef => ({
+                id: String(run.id),
+                runNumber: run.run_number,
+                headSha: run.head_sha,
+                finished: run.status === 'completed',
+                conclusion: run.conclusion ?? null,
+                htmlUrl: run.html_url,
+                createdAt: run.created_at,
+                prNumbers: (run.pull_requests ?? []).map((pr) => pr.number),
+              }),
+            );
+          } catch (err) {
+            // Unknown workflow (e.g. removed since install) → no runs, not an error.
+            if ((err as { status?: number }).status === 404) return [];
+            throw err;
+          }
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async downloadRunArtifactEntry(
+    repo: RepoRef,
+    runId: string,
+    artifactName: string,
+    entryName: string,
+  ): Promise<string | null> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const list = await this.octokit.rest.actions.listWorkflowRunArtifacts({
+            owner: repo.owner,
+            repo: repo.name,
+            run_id: Number(runId),
+          });
+          const artifact = list.data.artifacts.find((a) => a.name === artifactName);
+          if (!artifact) return null;
+
+          // Refuse an oversized archive BEFORE ever inflating it — the size
+          // GitHub reports is the actual stored archive size, not something a
+          // hostile actor can shrink to slip past this check.
+          if (artifact.size_in_bytes > MAX_ARTIFACT_BYTES) return null;
+
+          const download = await this.octokit.rest.actions.downloadArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifact.id,
+            archive_format: 'zip',
+          });
+          const bytes = new Uint8Array(download.data as unknown as ArrayBuffer);
+          if (bytes.byteLength > MAX_ARTIFACT_BYTES) return null;
+
+          // Runs against the central directory BEFORE decompression — the
+          // service must never learn this is a zip, and only the single
+          // named entry is ever inflated (server/insights.md, Tool & Library
+          // Notes 2026-08-04: `originalSize` is attacker-controlled).
+          const entries = unzipSync(bytes, {
+            filter: (file) => file.name === entryName && file.originalSize <= MAX_RESULT_BYTES,
+          });
+          const inflated = entries[entryName];
+          if (!inflated) return null;
+          // Re-check the ACTUAL inflated length — `originalSize` in the zip
+          // header is attacker-controlled and must not be trusted alone.
+          if (inflated.byteLength > MAX_RESULT_BYTES) return null;
+          return new TextDecoder('utf-8').decode(inflated);
+        })(),
+        TIMEOUT,
+      ),
+    );
   }
 }

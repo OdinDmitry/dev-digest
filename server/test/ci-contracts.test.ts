@@ -15,6 +15,10 @@ import {
   CiExport,
   CiFile,
   CiSecretExpectation,
+  CiResultArtifact,
+  CiRun,
+  CiRefreshResult,
+  CiRunStatus,
 } from '@devdigest/shared';
 
 const CI_FILE_FIXTURE = {
@@ -132,6 +136,134 @@ describe('CiExportInput rejects invalid input', () => {
       const paths = result.error.issues.map((i) => i.path.join('.'));
       expect(paths).toContain('repo_id');
     }
+  });
+});
+
+// ===========================================================================
+// T17 (Phase B) — CiResultArtifact / CiRun / CiRefreshResult / CiRunStatus
+// ===========================================================================
+
+const CI_RESULT_ARTIFACT_FIXTURE = {
+  schema_version: 1,
+  repo: 'acme/widgets',
+  head_sha: 'headsha1234',
+  workflow_sha: 'workflowsha5678',
+  pr_number: 42,
+  agent: 'Security Reviewer',
+  manifest_version: 1,
+  model: 'deepseek/deepseek-v4-flash',
+  runner_build: '1',
+  verdict: 'changes_requested' as const,
+  skip_reason: null,
+  findings_count: 1,
+  critical: 1,
+  warning: 0,
+  suggestion: 0,
+  cost_usd: 0.002,
+  duration_ms: 1500,
+};
+
+const CI_RUN_FIXTURE = {
+  id: 'run-1',
+  ci_installation_id: 'inst-1',
+  agent_id: 'agent-1',
+  agent_name: 'Security Reviewer',
+  repo: 'acme/widgets',
+  pr_number: 42,
+  head_sha: 'headsha1234',
+  status: 'recorded' as const,
+  verdict: 'changes_requested' as const,
+  unavailable_reason: null,
+  findings_count: 1,
+  critical: 1,
+  warning: 0,
+  suggestion: 0,
+  cost_usd: 0.002,
+  duration_ms: 1500,
+  ran_at: '2026-08-28T00:00:00.000Z',
+  job_url: 'https://github.com/acme/widgets/actions/runs/1',
+  model: 'deepseek/deepseek-v4-flash',
+  manifest_version: 1,
+  runner_build: '1',
+};
+
+const CI_REFRESH_RESULT_FIXTURE = {
+  runs: [CI_RUN_FIXTURE],
+  recorded: 1,
+  skipped_existing: 0,
+  rejected: [{ job_url: 'https://github.com/acme/widgets/actions/runs/2', reason: 'artifact repo mismatch' }],
+  installations_checked: 1,
+};
+
+describe('CI contracts parse valid fixtures (Phase B)', () => {
+  it('CiResultArtifact', () => {
+    expect(() => CiResultArtifact.parse(CI_RESULT_ARTIFACT_FIXTURE)).not.toThrow();
+  });
+  it('CiRun', () => {
+    expect(() => CiRun.parse(CI_RUN_FIXTURE)).not.toThrow();
+  });
+  it('CiRefreshResult', () => {
+    expect(() => CiRefreshResult.parse(CI_REFRESH_RESULT_FIXTURE)).not.toThrow();
+  });
+});
+
+describe('CiResultArtifact rejects invalid input', () => {
+  it('rejects a missing repo', () => {
+    const { repo: _repo, ...rest } = CI_RESULT_ARTIFACT_FIXTURE;
+    const result = CiResultArtifact.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('repo');
+    }
+  });
+
+  it('rejects a missing head_sha', () => {
+    const { head_sha: _headSha, ...rest } = CI_RESULT_ARTIFACT_FIXTURE;
+    const result = CiResultArtifact.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('head_sha');
+    }
+  });
+
+  it('rejects a pr_number of 0', () => {
+    const result = CiResultArtifact.safeParse({ ...CI_RESULT_ARTIFACT_FIXTURE, pr_number: 0 });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('pr_number');
+    }
+  });
+
+  it('a verdict: "skipped" artifact with a non-null skip_reason parses', () => {
+    const skipped = {
+      ...CI_RESULT_ARTIFACT_FIXTURE,
+      verdict: 'skipped' as const,
+      skip_reason: 'pull requests from forks are not reviewed',
+      findings_count: 0,
+      critical: 0,
+      warning: 0,
+      suggestion: 0,
+      cost_usd: null,
+      duration_ms: 0,
+    };
+    const result = CiResultArtifact.safeParse(skipped);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('CiRunStatus', () => {
+  it('accepts in_progress / recorded / unavailable', () => {
+    expect(CiRunStatus.safeParse('in_progress').success).toBe(true);
+    expect(CiRunStatus.safeParse('recorded').success).toBe(true);
+    expect(CiRunStatus.safeParse('unavailable').success).toBe(true);
+  });
+
+  it('no longer accepts "succeeded" or "no_findings"', () => {
+    expect(CiRunStatus.safeParse('succeeded').success).toBe(false);
+    expect(CiRunStatus.safeParse('no_findings').success).toBe(false);
   });
 });
 
