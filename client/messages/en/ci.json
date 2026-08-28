@@ -19,7 +19,12 @@
       "source": "Source",
       "findings": "Findings",
       "cost": "Cost",
-      "status": "Status"
+      "status": "Status",
+      "repository": "Repository",
+      "agent": "Agent",
+      "verdict": "Verdict",
+      "duration": "Duration",
+      "job": "Job"
     },
     "view": "View",
     "status": {
@@ -27,7 +32,24 @@
       "noFindings": "No findings",
       "failed": "Failed",
       "running": "Running"
-    }
+    },
+    "verdict": {
+      "approved": "Approved",
+      "changesRequested": "Changes requested",
+      "commented": "Commented",
+      "skipped": "Skipped"
+    },
+    "runStatus": {
+      "inProgress": "In progress",
+      "recorded": "Recorded",
+      "unavailable": "Unavailable"
+    },
+    "forkSkipped": "Skipped — pull requests from forks don't receive secrets, so the review could not run.",
+    "jobLink": "View job",
+    "rejectionsHeading": "Some runs could not be recorded",
+    "rejectedLine": "{job}: {reason}",
+    "noInstallationTitle": "No CI installations yet",
+    "noInstallationBody": "Export an agent to CI from its CI tab to start recording runs here."
   },
   "exportWizard": {
     "title": "Export to CI",
@@ -72,7 +94,38 @@
     "installCardTitle": "Open a PR with these files",
     "installCardBody": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the {count} generated files.",
     "ownerRepo": "owner/repo",
-    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs."
+    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs.",
+    "triggers": {
+      "opened": "Pull request opened",
+      "synchronize": "New commits pushed",
+      "reopened": "Pull request reopened"
+    },
+    "secrets": {
+      "heading": "Expected secrets",
+      "providedByPlatform": "provided by Actions",
+      "mustAdd": "you must add this"
+    },
+    "stepOf": "Step {n} of {total} — {label}",
+    "repoRequired": "Choose a target repository to continue.",
+    "triggerRequired": "Select at least one trigger to continue.",
+    "noSkills": "This agent has no skills attached.",
+    "workflowErrorLabel": "This workflow is not valid:",
+    "previewFailedLabel": "Could not generate the preview:",
+    "installFailedLabel": "Could not open the pull request:",
+    "noRepositories": "Import a repository first to export this agent to CI.",
+    "targetUnavailableBadge": "Not available in this version",
+    "branchProtectionNote": "Blocking a merge on this check additionally requires adding it as a required status check in the repository's own branch protection settings.",
+    "zipCardTitle": "Copy files as a zip",
+    "zipCardBody": "Files are added to the repository manually.",
+    "successTitle": "Pull request opened",
+    "prLinkLabel": "View pull request",
+    "repoChooser": {
+      "filterLabel": "Filter repositories",
+      "filterPlaceholder": "Search repositories…",
+      "matchCount": "{n} repositories match",
+      "noMatches": "No repositories match your search.",
+      "listboxLabel": "Repositories"
+    }
   },
   "ciTab": {
     "heading": "Continuous Integration",
@@ -82,7 +135,17 @@
     "update": "Update CI",
     "noRepo": "Connect a repository first",
     "empty": "Not deployed to CI yet. Use “Publish to CI” to open a PR that adds the workflow + agent config.",
-    "installed": "installed {date}"
+    "installed": "installed {date}",
+    "workflowCurrent": "Up to date",
+    "workflowOutdated": "Out of date",
+    "reExportNotice": "This change reaches CI only after the agent is exported to that repository again.",
+    "noInstallations": "Not exported to CI yet. Use “Export to CI” to add this agent to a repository's checks.",
+    "installationsHeading": "CI installations",
+    "recentRunsHeading": "Recent CI runs",
+    "noRunsForInstallation": "No CI run recorded yet.",
+    "target": "Target",
+    "installedOn": "Installed",
+    "threshold": "Threshold"
   },
   "publishDialog": {
     "title": "Publish to CI",

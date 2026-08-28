@@ -20,6 +20,10 @@ import { s } from "./styles";
 /** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
 export function ConfigTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
+  // The CI-threshold re-export notice's copy lives in ci.json (T1), not
+  // agents.json — same cross-namespace-tab shape as CiTab itself
+  // (client/insights.md, Codebase Patterns 2026-08-16).
+  const tCi = useTranslations("ci");
   const toast = useToast();
   const update = useUpdateAgent();
   const [name, setName] = React.useState(agent.name);
@@ -137,6 +141,11 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           onChange={(v) => setCiFailOn(v as CiFailOn)}
           options={ciFailOnOptions}
         />
+        {/* AC-10: shown only once the picked value diverges from what's
+           actually exported — absent before any change. */}
+        {ciFailOn !== agent.ci_fail_on && (
+          <div style={s.reExportNotice}>{tCi("ciTab.reExportNotice")}</div>
+        )}
       </FormField>
       <FormField label={t("config.repoIntel")} hint={t("config.repoIntelHint")}>
         <label style={s.enabledLabel}>

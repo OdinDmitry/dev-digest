@@ -17,6 +17,7 @@ export const s = {
     fontSize: 12,
     color: over ? "var(--crit)" : "var(--text-muted)",
   }),
+  reExportNotice: { fontSize: 12, color: "var(--warn)", marginTop: 8, lineHeight: 1.45 } satisfies CSSProperties,
   actions: { display: "flex", gap: 10, marginTop: 10 } satisfies CSSProperties,
   savedNote: { alignSelf: "center", fontSize: 13, color: "var(--ok)" } satisfies CSSProperties,
 } as const;

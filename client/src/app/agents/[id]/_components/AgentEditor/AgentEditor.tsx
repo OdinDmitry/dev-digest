@@ -1,5 +1,5 @@
 /* AgentEditor — agent config (model + system prompt) and the skills attached to
-   it. Later lessons add the Evals/Stats/CI tabs. Tab state lives in ?tab=. */
+   it. Later lessons add a Stats tab. Tab state lives in ?tab=. */
 "use client";
 
 import React from "react";
@@ -10,6 +10,7 @@ import { ContextAttachPanel } from "@/components/context-attach/ContextAttachPan
 import { ConfigTab } from "./_components/ConfigTab";
 import { SkillsTab } from "./_components/SkillsTab";
 import { EvalsTab } from "./_components/EvalsTab";
+import { CiTab } from "./_components/CiTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -29,6 +30,8 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
           <ContextAttachPanel ownerKind="agent" ownerId={agent.id} hint={tc("orderHint")} />
         ) : tab === "evals" ? (
           <EvalsTab agentId={agent.id} />
+        ) : tab === "ci" ? (
+          <CiTab agent={agent} />
         ) : (
           <ConfigTab agent={agent} />
         )}

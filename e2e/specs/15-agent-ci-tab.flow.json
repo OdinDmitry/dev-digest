@@ -1,0 +1,16 @@
+{
+  "name": "Agent editor CI tab renders its own deployment view, and its add-to-CI control opens the export wizard",
+  "description": "Opens the seeded Test Quality Reviewer and switches to its CI tab. Guards reachability the same way 11-agent-context-tab.flow.json and 14-agent-evals-tab.flow.json do: the tab button and the ?tab= whitelist on /agents/[id]/page.tsx are two separate places (client/insights.md 2026-08-17), and a build where they disagree would still change the URL while silently falling back to Config. So the URL assertion alone is not enough — one step asserts on copy (the CI-deployment heading) that only the CI tab renders, then the add-to-CI control is clicked and a further step asserts on the export wizard's target step's own copy, proving the control opens the wizard at that step rather than merely opening some dialog. No step here posts anything or triggers a model call — the wizard is opened and read, never advanced or submitted.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the seeded L02 agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "CI"], "label": "switch to the CI tab (the Tabs kit renders plain buttons, not role=tab)" },
+    { "cmd": ["wait", "--url", "tab=ci"], "label": "tab state is in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "installations/runs/repos fetches settle" },
+    { "cmd": ["wait", "--text", "Continuous Integration"], "label": "the CI tab's own deployment heading is visible — no other tab renders this text" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Export to CI"], "label": "open the export-to-CI wizard from its add-to-CI control" },
+    { "cmd": ["wait", "--text", "Target repository"], "label": "the wizard opened at its target step — Preview/Configure/Install render no such label" }
+  ]
+}

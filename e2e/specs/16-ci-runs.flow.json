@@ -1,0 +1,12 @@
+{
+  "name": "CI Runs page renders its no-installation empty state",
+  "description": "From the app root, activates the CI Runs nav item (sidebar link, not a tab — no ?tab= whitelist involved here) and asserts on the no-installation empty-state copy. The hermetic seed imports repos/PRs/agents but installs no CI integration anywhere, so `GET /ci/runs` returns zero rows and the page — never having seen a Refresh response with `installations_checked > 0` — defaults to the more informative 'no installation anywhere' copy (client/insights.md would apply here if this were a component-level note; the distinction itself lives in CiRunsView's own module doc). That copy is unique to this page (CiTab's own empty state is different text), so this doubles as a reachability + empty-state check with read-only seeded data and no model call.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "initial data fetch settles" },
+    { "cmd": ["find", "role", "link", "click", "--name", "CI Runs"], "label": "activate the CI Runs sidebar nav item" },
+    { "cmd": ["wait", "--url", "/ci-runs"], "label": "ci-runs route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "GET /ci/runs settles" },
+    { "cmd": ["wait", "--text", "No CI installations yet"], "label": "the no-installation empty state renders — the hermetic seed has no CI installation" }
+  ]
+}

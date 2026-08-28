@@ -8,6 +8,9 @@ import messages from "../../../../../../messages/en/agents.json";
 // NextIntlClientProvider below throws a MISSING_MESSAGE error to stderr on
 // every render (client/insights.md 2026-08-16).
 import contextMessages from "../../../../../../messages/en/context.json";
+// Same shape, same reason: ConfigTab now calls `useTranslations("ci")`
+// unconditionally too (the CI-threshold re-export notice, SPEC-05 AC-10).
+import ciMessages from "../../../../../../messages/en/ci.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
@@ -37,7 +40,7 @@ const AGENT: Agent = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages }}>
+    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages, ci: ciMessages }}>
       <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );
